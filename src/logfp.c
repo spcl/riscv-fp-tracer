@@ -51,6 +51,71 @@ static GString *log_entries;
 static int log_entry_count = 0;
 static GPtrArray *fnames;
 
+static const char freg_name[32][5] = {
+    "ft0",  "ft1",  "ft2",  "ft3",  "ft4",  "ft5",  "ft6",  "ft7",
+    "fs0",  "fs1",  "fa0",  "fa1",  "fa2",  "fa3",  "fa4",  "fa5",
+    "fa6",  "fa7",  "fs2",  "fs3",  "fs4",  "fs5",  "fs6",  "fs7",
+    "fs8",  "fs9",  "fs10", "fs11", "ft8",  "ft9",  "ft10", "ft11",
+};
+
+
+struct fp_data
+{
+    int num_regs;
+    int fp_regs[4];
+    char insn[64];
+};
+
+
+/* format instruction */
+static void append(char *s1, const char *s2, size_t n)
+{
+    size_t l1 = strlen(s1);
+    if (n - l1 - 1 > 0) {
+        strncat(s1, s2, n - l1);
+    }
+}
+
+
+static void fp_data_to_str(struct fp_data *data, char *buf, uint32_t n)
+{
+    append(buf, data->insn, n);
+    char tmp[129];
+    if (data->num_regs == 1)
+    {
+        double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]);
+        snprintf(tmp, 128, " %f", reg_val0);
+    }
+    else if (data->num_regs == 2)
+    {
+        double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]);
+        double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]);
+        snprintf(tmp, 128, " %f %f", reg_val0, reg_val1);
+    }
+    else if (data->num_regs == 3)
+    {
+        double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]);
+        double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]);
+        double reg_val2 = qemu_plugin_read_fp_reg(data->fp_regs[2]);
+        snprintf(tmp, 128, " %f %f %f", reg_val0, reg_val1, reg_val2);
+    }
+    else if (data->num_regs == 4)
+    {
+        double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]);
+        double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]);
+        double reg_val2 = qemu_plugin_read_fp_reg(data->fp_regs[2]);
+        double reg_val3 = qemu_plugin_read_fp_reg(data->fp_regs[3]);
+        snprintf(tmp, 128, " %f %f %f %f", reg_val0, reg_val1, reg_val2, reg_val3);
+    }
+    else
+    {
+        printf("[ERROR] Some thing went wrong!\n");
+    }
+    append(buf, tmp, n);
+    append(buf, "\n", n);
+}
+
+
 /**
  * Fast string to integer conversion
  */
@@ -125,39 +190,6 @@ static void flush_log_entries()
 }
 
 
-/**
- * Removes all extra spaces in a given disassembled instruction.
- * and also remove the first word from it, which is an unnecessary opcode.
- * For instance, if the given string is "e122  sd s0,128(sp)"
- * it will become "sd s0,128(sp)" post-processing.
- * Implementation from:
- * https://codescracker.com/c/program/c-program-remove-extra-spaces.htm
- * https://stackoverflow.com/questions/13035624/how-to-remove-first-word-from-string-in-c
- */
-/* static char *cleanup_disas_insn(char *str) */
-/* { */
-/*     int i, j, len; */
-/*     len = strlen(str); */
-/*     for(i = 0; i < len; ++i) */
-/*     { */
-/*         if(str[i] == 32 && str[i + 1] == 32) */
-/*         { */
-/*             for(j = i; j < (len - 1); ++j) */
-/*             { */
-/*                 str[j] = str[j + 1]; */
-/*             } */
-/*             len--; */
-/*             str[len] = '\0'; */
-/*             i = 0; */
-/*         } */
-/*     } */
-/*     char *tmp = strchr(str, ' '); */
-/*     if(tmp != NULL) */
-/*         return tmp + 1; */
-/*     return str; */
-/* } */
-
-
 /*
  * Expand last_exec array.
  *
@@ -170,8 +202,10 @@ static void expand_last_exec(int cpu_index)
 {
     g_mutex_lock(&expand_array_lock);
     while (cpu_index >= last_exec->len) {
-        GString *s = g_string_new(NULL);
-        g_ptr_array_add(last_exec, s);
+        /* GString *s = g_string_new(NULL); */
+        /* g_ptr_array_add(last_exec, s); */
+        struct fp_data *data = g_new0(struct fp_data, 1);
+        g_ptr_array_add(last_exec, data);
     }
     g_mutex_unlock(&expand_array_lock);
 }
@@ -225,50 +259,29 @@ static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
  */
 static void vcpu_insn_exec(unsigned int cpu_index, void *udata)
 {
-    GString *s;
     /* Find or create vCPU in array */
-    if (cpu_index >= last_exec->len) {
+    if (cpu_index >= last_exec->len)
+    {
         expand_last_exec(cpu_index);
     }
-    s = g_ptr_array_index(last_exec, cpu_index);
-    
-    /* Print previous instruction in cache */
-    if (s->len && (start || !trace_main)) {
-        // If instruction is floating point operation
-        // Splits the string into tokens
-        gchar **tokens = g_strsplit(s->str, " ", -1);
-        for (gchar** curr = tokens; *curr != NULL; curr++)
-        {
-            int reg = fast_str_to_int(*curr);
-            uint64_t val = qemu_plugin_read_fp_reg(reg);
-            if (val != 0)
-            {
-                /* double val = *(double *) &val; */
-                /* char buf[32]; */
-                // Cast the uint64_t to a string
-                char str[9];
-                snprintf(str, sizeof(str), "%08" PRIx64, val);
-                g_string_append(log_entries, str);
-            }
-            
-        }
-        /* g_string_append_c(s, '\n'); */
-        /* g_string_append(log_entries, s->str); */
+    struct fp_data *data = g_ptr_array_index(last_exec, cpu_index);
+    /* struct fp_data *data = (struct fp_data *) udata; */
+    if (data->num_regs > 0)
+    {
+        char buf[256];
+        buf[0] = '\0';
+        fp_data_to_str(data, buf, sizeof(buf));
+        g_string_append(log_entries, buf);
         log_entry_count++;
     }
+    /* g_free(data); */
+    /* printf("[DEBUG] insn: %s, reg[0]: %d\n", data->insn, data->fp_regs[0]); */
 
     /* Store new instruction in cache */
-    /* vcpu_mem will add memory access information to last_exec */
-    /* char buf[4]; */
-    /* int i = fast_int_to_str(buf, cpu_index); */
-    /* buf[i++] = ';'; */
-    /* buf[i] = '\0'; */
-    /* g_string_printf(s, "%u;", cpu_index); */
-    g_string_truncate(s, 0);
-    /* g_string_insert_len(s, -1, buf, i); */
-    /* g_string_append_len(s, buf, i); */
-    g_string_append(s, (char *)udata);
-    /* g_mutex_unlock(&log_lock); */
+    struct fp_data *new_data = (struct fp_data *) udata;
+    strcpy(data->insn, new_data->insn);
+    memcpy(data->fp_regs, new_data->fp_regs, sizeof(new_data->fp_regs));
+    data->num_regs = new_data->num_regs;
     if (log_entry_count % FLUSH_FREQ == 0)
         flush_log_entries();
 }
@@ -284,7 +297,7 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
     struct qemu_plugin_insn *insn;
     bool use_filter = (fmatches != NULL) || (fexcludes != NULL);
     bool skip = (fmatches != NULL) || (fexcludes != NULL) || trace_main;
-    
+    struct fp_data *data;
     size_t n = qemu_plugin_tb_n_insns(tb);
     for (size_t i = 0; i < n; i++)
     {
@@ -383,11 +396,33 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
             /* insn_opcode = *((uint32_t *)qemu_plugin_insn_data(insn)); */
             /* char *output = g_strdup_printf("0x%"PRIx64", 0x%"PRIx32", \"%s\"", */
             /*                                insn_vaddr, insn_opcode, insn_disas); */
-            /* char *output = g_strdup_printf("0x%"PRIx64";%s", insn_vaddr, insn_disas); */
-            /* char *output = g_strdup_printf("%s", insn_disas); */
-            /* char *output = g_strdup_printf("%s,%s", insn_disas, symbol); */
             
-            char *output = insn_disas;
+            // Splits the string into tokens
+            /* struct fp_data *data = malloc(sizeof(struct fp_data)); */
+            data = g_new0(struct fp_data, 1);
+            if (insn_disas[0] != '\0')
+            {
+                /* data = &tmp_data; */
+                char insn_buf[64] = { 0 };
+                int n = sizeof(insn_buf);
+                char *token;
+                token = strtok(insn_disas, " ");
+                append(insn_buf, token, n);
+                int reg_count = 0;
+                while (token != NULL)
+                {
+                    token = strtok(NULL, " ");
+                    if (token != NULL)
+                    {
+                        int reg = fast_str_to_int(token);
+                        append(insn_buf, " ", n);
+                        append(insn_buf, freg_name[reg], n);
+                        data->fp_regs[reg_count++] = reg;
+                    }
+                }
+                strncpy(data->insn, insn_buf, n);
+                data->num_regs = reg_count;
+            }
             /* bool exists = false; */
             /* for (int x = 0; x < fnames->len && !exists; ++x) */
             /* { */
@@ -408,7 +443,7 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
 
             /* Register callback on instruction */
             qemu_plugin_register_vcpu_insn_exec_cb(insn, vcpu_insn_exec,
-                                                   QEMU_PLUGIN_CB_NO_REGS, output);
+                                                   QEMU_PLUGIN_CB_NO_REGS, data);
 
             /* reset skip */
             // skip = (imatches || amatches);
@@ -422,16 +457,17 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
  */
 static void plugin_exit(qemu_plugin_id_t id, void *p)
 {
-    guint i;
-    GString *s;
-    for (i = 0; i < last_exec->len; i++) {
-        s = g_ptr_array_index(last_exec, i);
-        if (s->str) {
-            flush_log_entries();
-            qemu_plugin_outs(s->str);
-            qemu_plugin_outs("\n");
-        }
-    }
+    flush_log_entries();
+    /* guint i; */
+    /* GString *s; */
+    /* for (i = 0; i < last_exec->len; i++) { */
+        /* s = g_ptr_array_index(last_exec, i); */
+        /* if (s->str) { */
+        /*     flush_log_entries(); */
+            /* qemu_plugin_outs(s->str); */
+            /* qemu_plugin_outs("\n"); */
+    /*     } */
+    /* } */
 }
 
 /* Add a match to the array of matches */

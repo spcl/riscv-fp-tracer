@@ -1,14 +1,18 @@
 #include "stdio.h"
 #define X 1.2345
 
-// Type your code here, or load an example.
+// Example code for performing floating point operations
 double __attribute__ ((noinline)) kernel(double num) {
-    return num * num;
+  num += 1.11;
+  num *= 1.2;
+  for (int i = 0; i < 100; ++i)
+    num += 2.31;
+  num /= 1.5;
+  return num * num;
 }
 
 int main(int argc, char **argv)
 {
   double x = X;
-  printf("[DEBUG] x: %f\n", x);
   return kernel(x);
 }

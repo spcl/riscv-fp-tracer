@@ -240,7 +240,7 @@ char *qemu_plugin_insn_disas(const struct qemu_plugin_insn *insn)
     return plugin_disas(cpu, insn->vaddr, insn->data->len);
 }
 
-uint64_t qemu_plugin_read_fp_reg(int reg)
+double qemu_plugin_read_fp_reg(int reg)
 {
     // Implementation from:
     // https://stackoverflow.com/questions/60821772/qemu-plugin-functions-how-to-access-guest-memory-and-registers
@@ -249,7 +249,7 @@ uint64_t qemu_plugin_read_fp_reg(int reg)
     CPUArchState *cpu_state = current_cpu->env_ptr;
     if (reg < NUM_FP_REGS)
     {
-        return cpu_state->fpr[reg];
+        return *(double *) &cpu_state->fpr[reg];
     }
     printf("[ERROR] Register %d does not exist!\n", reg);
     return 0;

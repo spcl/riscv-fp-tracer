@@ -26,7 +26,7 @@ time ${QEMU_WITHOUT_TRACING} ${QEMU_FLAGS} ${binary}
 echo "Running ${binary} in QEMU with tracing"
 QEMU_DIR="/home/sishen/workspace/qemu/build/"
 QEMU_WITH_TRACING="${QEMU_DIR}qemu-riscv64"
-TRACE_PLUGIN="${QEMU_DIR}/contrib/plugins/liblogfp.so,ffilter=main,ffilter=kernel"
+TRACE_PLUGIN="${QEMU_DIR}/contrib/plugins/liblogfp.so,ffilter=kernel"
 time ${QEMU_WITH_TRACING} ${QEMU_FLAGS} \
      -plugin "${TRACE_PLUGIN}" -d plugin \
      -D "${trace_log}" ${binary}

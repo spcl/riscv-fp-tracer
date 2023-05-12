@@ -671,6 +671,6 @@ uint64_t qemu_plugin_entry_code(void);
  *
  * Returns the value of the register
  */
-uint64_t qemu_plugin_read_fp_reg(int reg);
+double qemu_plugin_read_fp_reg(int reg);
 
 #endif /* QEMU_QEMU_PLUGIN_H */
