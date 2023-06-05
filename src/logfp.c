@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 #include <qemu-plugin.h>
 
 #define START_SYMBOL "main"
@@ -76,42 +77,76 @@ static void append(char *s1, const char *s2, size_t n)
     }
 }
 
+/**
+ * An efficient way to convert double to a hex string
+ */
+void double_to_hex_str(double value, char *hex_string) {
+    unsigned char *ptr = (unsigned char *)&value;
+    size_t i, j;
 
+    for (i = 0, j = sizeof(double) - 1; i < sizeof(double); i++, j--) {
+        hex_string[i * 2] = "0123456789ABCDEF"[ptr[j] / 16];
+        hex_string[i * 2 + 1] = "0123456789ABCDEF"[ptr[j] % 16];
+    }
+
+    hex_string[sizeof(double) * 2] = '\0';
+}
+
+
+/**
+ * Converts 
+ */
 static void fp_data_to_str(struct fp_data *data, char *buf, uint32_t n)
 {
     append(buf, data->insn, n);
-    char tmp[129];
-    if (data->num_regs == 1)
+    char tmp[sizeof(double) + 1];
+    /* if (data->num_regs == 1) */
+    /* { */
+    /*     char buf[sizeof(double) * 2 + 1]; */
+    /*     double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]); */
+    /*     double_to_hex_str(reg_val0, buf); */
+    /*     snprintf(tmp, 128, " %s", buf); */
+    /* } */
+    /* else if (data->num_regs == 2) */
+    /* { */
+    /*     char buf0[sizeof(double) * 2 + 1]; */
+    /*     char buf1[sizeof(double) * 2 + 1]; */
+    /*     double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]); */
+    /*     double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]); */
+    /*     double_to_hex_str(reg_val0, buf0); */
+    /*     double_to_hex_str(reg_val1, buf1); */
+        
+    /*     snprintf(tmp, 128, " %s %s", buf0, buf1); */
+    /* } */
+    /* else if (data->num_regs == 3) */
+    /* { */
+    /*     char buf0[sizeof(double) * 2 + 1]; */
+    /*     char buf1[sizeof(double) * 2 + 1]; */
+    /*     double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]); */
+    /*     double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]); */
+    /*     double reg_val2 = qemu_plugin_read_fp_reg(data->fp_regs[2]); */
+    /*     snprintf(tmp, 128, " %f %f %f", reg_val0, reg_val1, reg_val2); */
+    /* } */
+    /* else if (data->num_regs == 4) */
+    /* { */
+    /*     double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]); */
+    /*     double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]); */
+    /*     double reg_val2 = qemu_plugin_read_fp_reg(data->fp_regs[2]); */
+    /*     double reg_val3 = qemu_plugin_read_fp_reg(data->fp_regs[3]); */
+    /*     snprintf(tmp, 128, " %f %f %f %f", reg_val0, reg_val1, reg_val2, reg_val3); */
+    /* } */
+    /* else */
+    /* { */
+    /*     printf("[ERROR] Some thing went wrong!\n"); */
+    /* } */
+    assert(data->num_regs <= 4);
+    for (int reg = 0; reg < data->num_regs; ++reg)
     {
-        double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]);
-        snprintf(tmp, 128, " %f", reg_val0);
+        append(buf, " ", n);
+        double reg_val = qemu_plugin_read_fp_reg(data->fp_regs[reg]);
+        double_to_hex_str(reg_val, tmp);
+        append(buf, tmp, n);
     }
-    else if (data->num_regs == 2)
-    {
-        double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]);
-        double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]);
-        snprintf(tmp, 128, " %f %f", reg_val0, reg_val1);
-    }
-    else if (data->num_regs == 3)
-    {
-        double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]);
-        double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]);
-        double reg_val2 = qemu_plugin_read_fp_reg(data->fp_regs[2]);
-        snprintf(tmp, 128, " %f %f %f", reg_val0, reg_val1, reg_val2);
-    }
-    else if (data->num_regs == 4)
-    {
-        double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]);
-        double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]);
-        double reg_val2 = qemu_plugin_read_fp_reg(data->fp_regs[2]);
-        double reg_val3 = qemu_plugin_read_fp_reg(data->fp_regs[3]);
-        snprintf(tmp, 128, " %f %f %f %f", reg_val0, reg_val1, reg_val2, reg_val3);
-    }
-    else
-    {
-        printf("[ERROR] Some thing went wrong!\n");
-    }
-    append(buf, tmp, n);
     append(buf, "\n", n);
 }
 
