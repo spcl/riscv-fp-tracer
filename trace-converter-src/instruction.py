@@ -89,6 +89,8 @@ class OpCode(Enum):
     FLD = "fld"         # [x]
     FSW = "fsw"         # [x]
     FSD = "fsd"         # [x]
+    FSNGJ = "fsgnj"     # [x]
+
 
 class Instruction(object):
     """
@@ -115,7 +117,8 @@ class Instruction(object):
         <opcode> [ <fp_reg>]+ [ <reg_val_hex>]+
         """
         assert isinstance(self.reg_vals[0], np.float16)
-        reg_vals = list(map(fp16_to_hex, self.reg_vals))
+        # reg_vals = list(map(fp16_to_hex, self.reg_vals))
+        reg_vals = list(map(str, self.reg_vals))
         res = f"{self.opcode.value} {' '.join(self.operands)} "
         res += f"{' '.join(reg_vals)}{end}"
         return res

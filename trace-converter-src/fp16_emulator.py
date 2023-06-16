@@ -6,6 +6,7 @@ from functools import partial
 from utils import hex64_to_fp16
 from instruction import Instruction, OpCode, ArithOp
 
+
 class HalfPrecisionEmulator(object):
     """
     A simplified emulator that executes floating point instructions
@@ -49,24 +50,28 @@ class HalfPrecisionEmulator(object):
                                    op1=ArithOp.MUL, op2=ArithOp.SUB, neg=True),
             OpCode.FEQ: self.__comp_fs1_fs2,
             OpCode.FLE: self.__comp_fs1_fs2,
-            OpCode.FLT: self.__comp_fs1_fs2
+            OpCode.FLT: self.__comp_fs1_fs2,
+            OpCode.FSNGJ: self.__fsgnj,
         }
 
-    def __get_reg_val(self, reg: str, trace_val: str) -> np.float16:
+    def __get_reg_val(self, reg: str, trace_val: str,
+                      replace_old_val: bool = False) -> np.float16:
         """
         Returns the value in the given register as a np.float16.
         This function first checks if an value has already 
         been assigned to the register. If not, it converts the FP64
         value from the trace to FP16 and store the converted value
-        to `fp_regs`.
+        to `fp_regs`. If `replace_old_val` is True, the old
+        value in the register file will be placed by the new
+        value assuming that the register is not empty.
         """
-        if reg in self.fp_regs:
+        if reg in self.fp_regs and not replace_old_val:
             return self.fp_regs[reg]
-        else:
-            # Converts HEX string to FP16
-            val = hex64_to_fp16(trace_val)
-            self.fp_regs[reg] = val
-            return val
+
+        # Converts HEX string to FP16
+        val = hex64_to_fp16(trace_val)
+        self.fp_regs[reg] = val
+        return val
 
     def __comp_fs1_fs2(self, insn: Instruction) -> None:
         """
@@ -79,7 +84,7 @@ class HalfPrecisionEmulator(object):
         fs1_val = self.__get_reg_val(fs1, reg_vals[0])
         fs2_val = self.__get_reg_val(fs2, reg_vals[1])
 
-        self.reg_vals = [fs1_val, fs2_val]
+        insn.reg_vals = [fs1_val, fs2_val]
 
     def __mv(self, insn: Instruction) -> None:
         """
@@ -88,14 +93,24 @@ class HalfPrecisionEmulator(object):
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
-        assert len(reg_vals) == len(operands) == 1
-        # Converts hex string to np.float64
-        reg = operands[0]
-        reg_val = reg_vals[0]
-        reg_val_fp16 = hex64_to_fp16(reg_val)
-        self.fp_regs[reg] = reg_val_fp16
-        # Sets the register values to be in FP16
-        insn.reg_vals = [reg_val_fp16]
+        assert((len(reg_vals) == len(operands) == 1) or \
+               len(reg_vals) == len(operands) == 2)
+        if len(reg_vals) == 1:
+            # Converts hex string to np.float64
+            reg = operands[0]
+            reg_val = reg_vals[0]
+            reg_val_fp16 = hex64_to_fp16(reg_val)
+            self.fp_regs[reg] = reg_val_fp16
+            # Sets the register values to be in FP16
+            insn.reg_vals = [reg_val_fp16]
+        else:
+            # len(reg_vals) == 2
+            rd, rs1 = operands
+            rd_val, rs1_val = list(map(hex64_to_fp16, reg_vals))
+            self.fp_regs[rd] = rd_val
+            self.fp_regs[rs1] = rs1_val
+
+            insn.reg_vals = [rd_val, rs1_val]
 
     def __ld(self, insn: Instruction) -> None:
         """
@@ -110,7 +125,9 @@ class HalfPrecisionEmulator(object):
         if addr in self.mem:
             val = self.mem[addr]
         else:
+            # If the value does not exist in memory
             val = hex64_to_fp16(reg_vals[0])
+            self.mem[addr] = val
         
         self.fp_regs[operands[0]] = val
         insn.reg_vals = [val]
@@ -134,6 +151,22 @@ class HalfPrecisionEmulator(object):
         self.mem[insn.addr] = reg_val
         insn.reg_vals = [reg_val]
 
+    def __fsgnj(self, insn: Instruction) -> None:
+        """
+        Emulates the floating point sign injection instruction,
+        i.e., fsgnj.
+        """
+        reg_vals = insn.reg_vals
+        operands = insn.operands
+        assert len(reg_vals) == len(operands) == 3
+
+        fd, fs1, fs2 = operands
+        fd_val = self.__get_reg_val(fd, reg_vals[0], True)
+        fs1_val = self.__get_reg_val(fs1, reg_vals[1])
+        fs2_val = self.__get_reg_val(fs2, reg_vals[2])
+
+        insn.reg_vals = [fd_val, fs1_val, fs2_val]
+
     def __arith_fd_fs1(self, insn: Instruction, op: ArithOp) -> None:
         """
         Emulates an arithmetic operation that involves two registers
@@ -143,9 +176,9 @@ class HalfPrecisionEmulator(object):
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
-        assert len(reg_vals) == len(operands) == 1
+        assert len(reg_vals) == len(operands) == 2
         fd, fs1 = operands
-        fs1_val = self.__get_reg_val(fs1, reg_vals[0])
+        fs1_val = self.__get_reg_val(fs1, reg_vals[1])
         
         fd_val = ArithOp.perform_unary_op(op, fs1_val)
         self.fp_regs[fd] = fd_val
@@ -162,8 +195,8 @@ class HalfPrecisionEmulator(object):
         operands = insn.operands
         assert len(reg_vals) == len(operands) == 3
         fd, fs1, fs2 = operands
-        fs1_val = self.__get_reg_val(fs1, reg_vals[0])
-        fs2_val = self.__get_reg_val(fs2, reg_vals[1])
+        fs1_val = self.__get_reg_val(fs1, reg_vals[1])
+        fs2_val = self.__get_reg_val(fs2, reg_vals[2])
 
         fd_val = ArithOp.perform_op(op, fs1_val, fs2_val)
         self.fp_regs[fd] = fd_val
@@ -182,9 +215,9 @@ class HalfPrecisionEmulator(object):
         operands = insn.operands
         assert len(reg_vals) == len(operands) == 4
         fd, fs1, fs2, fs3 = operands
-        fs1_val = self.__get_reg_val(fs1, reg_vals[0])
-        fs2_val = self.__get_reg_val(fs2, reg_vals[1])
-        fs3_val = self.__get_reg_val(fs3, reg_vals[2])
+        fs1_val = self.__get_reg_val(fs1, reg_vals[1])
+        fs2_val = self.__get_reg_val(fs2, reg_vals[2])
+        fs3_val = self.__get_reg_val(fs3, reg_vals[3])
 
         fd_val = ArithOp.perform_ops(op1, op2, fs1_val, fs2_val, fs3_val)
         if neg:

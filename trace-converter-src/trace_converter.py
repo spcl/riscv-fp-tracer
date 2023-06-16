@@ -1,4 +1,5 @@
 import os
+from time import time
 from tqdm import tqdm
 from typing import List, Optional
 from parser import Parser
@@ -18,7 +19,7 @@ class TraceConverter(object):
         self.trace_file = trace_file
         self.output_file = output_file
 
-    def convert(self, flush_freq: int = 10000) -> None:
+    def convert(self, flush_freq: int = 1000000) -> None:
         """
         Converts the instructions in the given trace file to FP16.
         @param flush_freq: An integer that indicates how often the converted
@@ -28,22 +29,27 @@ class TraceConverter(object):
         """
         out_buf = ""
         trace = open(self.trace_file, "r")
-        output = open(self.output_file, "w")
+        output = open(self.output_file, "w+")
         count = 0
         # Initializes the emulator
         emulator = HalfPrecisionEmulator()
 
+        prev_time = time()
         # Iterates through every line in the trace file
         for line in trace:
             if count % flush_freq == 0 and count > 0:
+                curr_time = time()
+                print(f"[INFO] Progress [{count}]: {int(flush_freq / (curr_time - prev_time))} iter/s")
                 # Flushes the output buffer according to `flush`
                 output.write(out_buf)
-                count = 0
-            
+                out_buf = ""
+                prev_time = curr_time
+
             insn = Parser.parse(line)
             emulator.execute(insn)
+            # print(emulator.get_last_insn())
             out_buf += emulator.get_last_insn().output()
-            print(emulator.get_last_insn())
+            count += 1
 
         output.write(out_buf)
         trace.close()
