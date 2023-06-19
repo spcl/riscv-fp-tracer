@@ -1,14 +1,16 @@
+from typing import Union
 import numpy as np
+from functools import lru_cache
 
 
-def fp64_to_fp16(fp64_val: np.float64) -> np.float16:
+def to_fp16(val: Union[np.float64, np.float32]) -> np.float16:
     """
-    Converts the given FP64 value to FP16.
+    Converts the given value, either in FP64 or FP32 to FP16.
     """
-    return np.float16(fp64_val)
+    return np.float16(val)
 
-
-def hex_to_fp64(hex_string: str, endianness: str = "little") -> np.float64:
+@lru_cache(maxsize=10000)
+def hex64_to_fp64(hex_string: str, endianness: str = "little") -> np.float64:
     """
     Converts the given hex string to np.float64. By default,
     it is assumed that the the given hex string represents a floating
@@ -20,15 +22,33 @@ def hex_to_fp64(hex_string: str, endianness: str = "little") -> np.float64:
     return fp64_value
 
 
-def hex64_to_fp16(hex_string: str) -> np.float16:
+@lru_cache(maxsize=10000)
+def hex64_to_fp32(hex_string: str, endianness: str = "little") -> np.float32:
     """
-    Converts a 64bit hex string directly to np.float16 by
-    first converting it to fp64 then to fp16.
+    Converts a 64-bit hex string to np.float32 by extracting the
+    lower 32 bits from the string.
     """
-    return fp64_to_fp16(hex_to_fp64(hex_string))
+    hex_value = int(hex_string[-8:], 16).to_bytes(4, endianness)
+    fp32_value = np.frombuffer(hex_value, dtype=np.float32, count=1)[0]
+    return fp32_value
 
 
-def hex_to_fp16(hex_string: str, endianness: str = "little") -> np.float16:
+@lru_cache(maxsize=1000)
+def hex64_to_fp16(hex_string: str, is_double: bool = True) -> np.float16:
+    """
+    Converts a 64-bit hex string directly to np.float16.
+    If `is_double` is True, it will convert the hex string to
+    FP64 then to FP16. Otherwise, it will first convert it
+    to FP32 then to FP16.
+    """
+    if is_double:
+        intermediate_val = hex64_to_fp64(hex_string)
+    else:
+        intermediate_val = hex64_to_fp32(hex_string)
+    return to_fp16(intermediate_val)
+
+
+def hex16_to_fp16(hex_string: str, endianness: str = "little") -> np.float16:
     """
     Converts the given hex string to np.float16. By default,
     it is assumed that the the given hex string represents a floating

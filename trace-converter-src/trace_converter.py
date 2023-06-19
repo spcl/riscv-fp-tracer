@@ -2,22 +2,28 @@ import os
 from time import time
 from tqdm import tqdm
 from typing import List, Optional
-from parser import Parser
+from trace_parser import TraceParser
 from fp16_emulator import HalfPrecisionEmulator
+from fp_stats_collector import FpStatsCollector
 
 class TraceConverter(object):
     """
     Converts all instructions in the given floating point trace in FP64
-    to FP16. As an example, if we have instruction
-    'fadd.d fa5 fa3 fa5;40091EB851EB851F 40091EB851EB851F 40191EB851EB851F'
+    to FP16.
+    
+    As an example, if we have instruction
+    'fadd.d fa5 fa3 fa5;40091EB851EB851F 40091EB851EB851F 40191EB851EB851F'.
+
     It will be converted to
     'fadd fa5 fa3 fa5;4248 4248 4648'
     """
-    def __init__(self, trace_file: str, output_file: str) -> None:
+    def __init__(self, trace_file: str, output_file: str,
+                 collector: Optional[FpStatsCollector] = None) -> None:
         # Makes sure that the given file exists
         assert(os.path.exists(trace_file))
         self.trace_file = trace_file
         self.output_file = output_file
+        self.collector = collector
 
     def convert(self, flush_freq: int = 1000000) -> None:
         """
@@ -32,7 +38,7 @@ class TraceConverter(object):
         output = open(self.output_file, "w+")
         count = 0
         # Initializes the emulator
-        emulator = HalfPrecisionEmulator()
+        emulator = HalfPrecisionEmulator(self.collector)
 
         prev_time = time()
         # Iterates through every line in the trace file
@@ -44,8 +50,7 @@ class TraceConverter(object):
                 output.write(out_buf)
                 out_buf = ""
                 prev_time = curr_time
-
-            insn = Parser.parse(line)
+            insn = TraceParser.parse(line)
             emulator.execute(insn)
             # print(emulator.get_last_insn())
             out_buf += emulator.get_last_insn().output()

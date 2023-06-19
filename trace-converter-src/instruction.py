@@ -68,7 +68,11 @@ class ArithOp(Enum):
 
 class OpCode(Enum):
     FCVT = "fcvt"       # [x]
+    FCVTD = "fcvt.d"    # [x]
+    FCVTS = "fcvt.s"    # [x]
     FMV = "fmv"         # [x]
+    FMVD = "fmv.d"      # [x]
+    FMVS = "fmv.s"      # [x]
     FDIV = "fdiv"       # [x]
     FSUB = "fsub"       # [x]
     FADD = "fadd"       # [x]
@@ -89,7 +93,8 @@ class OpCode(Enum):
     FLD = "fld"         # [x]
     FSW = "fsw"         # [x]
     FSD = "fsd"         # [x]
-    FSNGJ = "fsgnj"     # [x]
+    FSGNJ = "fsgnj"     # [x]
+    FSGNJN = "fsgnjn"   # [x]
 
 
 class Instruction(object):
