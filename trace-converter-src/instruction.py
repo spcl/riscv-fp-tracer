@@ -104,16 +104,21 @@ class Instruction(object):
     """
     def __init__(self, opcode: OpCode, operands: List[str],
                  reg_vals: List[Union[np.float16, str]],
-                 addr: Optional[str] = None) -> None:
+                 addr: Optional[str] = None,
+                 is_double: bool = True) -> None:
+        """
+        `is_double` indicates whether the instruction was
+        performed on double-precision FP numbers.
+        """
         self.opcode = opcode
         self.operands = operands
         self.reg_vals = reg_vals
         self.addr = addr
+        self.is_double = is_double
     
     def __str__(self) -> str:
         regs = [f"{reg}({val})" for reg, val in zip(self.operands, self.reg_vals)]
         return f"{self.opcode.value} {','.join(regs)}"
-    
 
     def output(self, end: str = "\n") -> str:
         """

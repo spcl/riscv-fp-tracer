@@ -1091,6 +1091,7 @@ static const char rv_vreg_name_sym[32][4] = {
 #define rv_fmt_rd_offset              ""
 #define rv_fmt_rd_rs1_rs2             ""
 #define rv_fmt_frd_rs1                "O\t3"
+#define rv_fmt_frd_frs1               "O\t3\t4"
 #define rv_fmt_rd_frs1                "O\t4"
 #define rv_fmt_rd_frs1_frs2           "O\t4\t5"
 #define rv_fmt_frd_frs1_frs2          "O\t3\t4\t5"
@@ -1723,15 +1724,15 @@ const rv_opcode_data opcode_data[] = {
     { "snez", rv_codec_r, rv_fmt_rd_rs2, NULL, 0, 0, 0 },
     { "sltz", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
     { "sgtz", rv_codec_r, rv_fmt_rd_rs2, NULL, 0, 0, 0 },
-    { "fmv.s", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
-    { "fabs.s", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
-    { "fneg.s", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
-    { "fmv.d", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
-    { "fabs.d", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
-    { "fneg.d", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
-    { "fmv.q", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
-    { "fabs.q", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
-    { "fneg.q", rv_codec_r, rv_fmt_rd_rs1, NULL, 0, 0, 0 },
+    { "fmv.s", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
+    { "fabs.s", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
+    { "fneg.s", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
+    { "fmv.d", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
+    { "fabs.d", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
+    { "fneg.d", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
+    { "fmv.q", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
+    { "fabs.q", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
+    { "fneg.q", rv_codec_r, rv_fmt_frd_frs1, NULL, 0, 0, 0 },
     { "beqz", rv_codec_sb, rv_fmt_rs1_offset, NULL, 0, 0, 0 },
     { "bnez", rv_codec_sb, rv_fmt_rs1_offset, NULL, 0, 0, 0 },
     { "blez", rv_codec_sb, rv_fmt_rs2_offset, NULL, 0, 0, 0 },

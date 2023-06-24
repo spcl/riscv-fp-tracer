@@ -35,7 +35,7 @@ class HalfPrecisionEmulator(object):
             OpCode.FMVS: self.__mv_to_fp,
             OpCode.FSW: self.__st,
             OpCode.FSD: self.__st,
-            OpCode.FLW: partial(self.__ld, is_double=False),
+            OpCode.FLW: self.__ld,
             OpCode.FLD: self.__ld,
             OpCode.FABS: partial(self.__arith_fd_fs1, op=ArithOp.ABS),
             OpCode.FSQRT: partial(self.__arith_fd_fs1, op=ArithOp.SQRT),
@@ -106,10 +106,11 @@ class HalfPrecisionEmulator(object):
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
+        is_double = insn.is_double
         assert len(reg_vals) == len(operands) == 2
         fs1, fs2 = operands
-        fs1_val = self.__get_reg_val(fs1, reg_vals[0])
-        fs2_val = self.__get_reg_val(fs2, reg_vals[1])
+        fs1_val = self.__get_reg_val(fs1, reg_vals[0], is_double)
+        fs2_val = self.__get_reg_val(fs2, reg_vals[1], is_double)
 
         insn.reg_vals = [fs1_val, fs2_val]
 
@@ -122,7 +123,7 @@ class HalfPrecisionEmulator(object):
         operands = insn.operands
         assert (len(reg_vals) == len(operands) == 1)
         reg = operands[0]
-        reg_val = self.__get_reg_val(reg, reg_vals[0])
+        reg_val = self.__get_reg_val(reg, reg_vals[0], insn.is_double)
         insn.reg_vals = [reg_val]
 
     def __mv_to_fp(self, insn: Instruction) -> None:
@@ -132,33 +133,33 @@ class HalfPrecisionEmulator(object):
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
+        is_double = insn.is_double
         assert (len(reg_vals) == len(operands) == 1) or \
             (len(reg_vals) == len(operands) == 2)
         
         if len(reg_vals) == 1:
             reg = operands[0]
-            reg_val = hex64_to_fp16(reg_vals[0])
+            reg_val = hex64_to_fp16(reg_vals[0], is_double)
             self.fp_regs[reg] = reg_val
             insn.reg_vals = [reg_val]
             # Collects statistics
             self.collector.add_input_val(reg_val)
-            self.collector.count_overflow_underflow(reg_val, reg_vals[0])
+            self.collector.count_overflow_underflow(reg_val, reg_vals[0],
+                                                    is_double)
         else:
             # len(operands) == 2
             # Moves FP value from one FP register to the other
             fd, fs = operands
-            fs_val = self.__get_reg_val(fs, reg_vals[1])
+            fs_val = self.__get_reg_val(fs, reg_vals[1], is_double)
             self.fp_regs[fd] = fs_val
             insn.reg_vals = [fs_val, fs_val]
             # Collects statistics
-            self.collector.count_overflow_underflow(fs_val, reg_vals[0])
+            self.collector.count_overflow_underflow(fs_val, reg_vals[0],
+                                                    is_double)
 
-    def __ld(self, insn: Instruction, is_double: bool = True) -> None:
+    def __ld(self, insn: Instruction) -> None:
         """
-        Emulates a load instruction. If `is_double` is True,
-        will treat the hex strings in the trace as 64-bit double
-        precision floating point values, otherwise, it will
-        treat them as 32-bit single-precision floating point values.
+        Emulates a load instruction.
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
@@ -170,22 +171,20 @@ class HalfPrecisionEmulator(object):
             val = self.mem[addr]
         else:
             # If the value does not exist in memory
-            val = hex64_to_fp16(reg_vals[0], is_double)
+            val = hex64_to_fp16(reg_vals[0], insn.is_double)
             self.collector.add_input_val(val)
             self.mem[addr] = val
         
         self.fp_regs[operands[0]] = val
         insn.reg_vals = [val]
 
-        self.collector.count_overflow_underflow(val, reg_vals[0])
+        self.collector.count_overflow_underflow(val, reg_vals[0],
+                                                insn.is_double)
 
-    def __st(self, insn: Instruction, is_double: bool = True) -> None:
+    def __st(self, insn: Instruction) -> None:
         """
         Emulates a store instruction by setting the appropriate
         memory address to the value stored in the register.
-        If `is_double` is True, will treat the hex strings in the trace as
-        64-bit double precision floating point values, otherwise, it will
-        treat them as 32-bit single-precision floating point values.
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
@@ -193,7 +192,7 @@ class HalfPrecisionEmulator(object):
         assert insn.addr is not None
         reg = operands[0]
         # Checks if the register is empty
-        reg_val = self.__get_reg_val(reg, reg_vals[0])
+        reg_val = self.__get_reg_val(reg, reg_vals[0], insn.is_double)
         # Sets the value in the target memory address
         self.mem[insn.addr] = reg_val
         insn.reg_vals = [reg_val]
@@ -206,11 +205,12 @@ class HalfPrecisionEmulator(object):
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
+        is_double = insn.is_double
         assert len(reg_vals) == len(operands) == 3
 
         fd, fs1, fs2 = operands
-        fs1_val = self.__get_reg_val(fs1, reg_vals[1])
-        fs2_val = self.__get_reg_val(fs2, reg_vals[2])
+        fs1_val = self.__get_reg_val(fs1, reg_vals[1], is_double)
+        fs2_val = self.__get_reg_val(fs2, reg_vals[2], is_double)
         sign = np.sign(fs2_val)
         if neg:
             sign = -sign
@@ -219,7 +219,7 @@ class HalfPrecisionEmulator(object):
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val, fs2_val]
 
-        self.collector.count_overflow_underflow(fd_val, reg_vals[0])
+        self.collector.count_overflow_underflow(fd_val, reg_vals[0], is_double)
 
     def __arith_fd_fs1(self, insn: Instruction, op: ArithOp) -> None:
         """
@@ -232,13 +232,14 @@ class HalfPrecisionEmulator(object):
         operands = insn.operands
         assert len(reg_vals) == len(operands) == 2
         fd, fs1 = operands
-        fs1_val = self.__get_reg_val(fs1, reg_vals[1])
+        fs1_val = self.__get_reg_val(fs1, reg_vals[1], insn.is_double)
         
         fd_val = ArithOp.perform_unary_op(op, fs1_val)
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val]
 
-        self.collector.count_overflow_underflow(fd_val, reg_vals[0])
+        self.collector.count_overflow_underflow(fd_val, reg_vals[0],
+                                                insn.is_double)
 
     def __arith_fd_fs1_fs2(self, insn: Instruction, op: ArithOp) -> None:
         """
@@ -249,16 +250,17 @@ class HalfPrecisionEmulator(object):
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
+        is_double = insn.is_double
         assert len(reg_vals) == len(operands) == 3
         fd, fs1, fs2 = operands
-        fs1_val = self.__get_reg_val(fs1, reg_vals[1])
-        fs2_val = self.__get_reg_val(fs2, reg_vals[2])
+        fs1_val = self.__get_reg_val(fs1, reg_vals[1], is_double)
+        fs2_val = self.__get_reg_val(fs2, reg_vals[2], is_double)
 
         fd_val = ArithOp.perform_op(op, fs1_val, fs2_val)
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val, fs2_val]
 
-        self.collector.count_overflow_underflow(fd_val, reg_vals[0])
+        self.collector.count_overflow_underflow(fd_val, reg_vals[0], is_double)
     
     def __arith_fd_fs1_fs2_fs3(self, insn: Instruction,
                                op1: ArithOp, op2: ArithOp, neg: bool = False) \
@@ -271,11 +273,12 @@ class HalfPrecisionEmulator(object):
         """
         reg_vals = insn.reg_vals
         operands = insn.operands
+        is_double = insn.is_double
         assert len(reg_vals) == len(operands) == 4
         fd, fs1, fs2, fs3 = operands
-        fs1_val = self.__get_reg_val(fs1, reg_vals[1])
-        fs2_val = self.__get_reg_val(fs2, reg_vals[2])
-        fs3_val = self.__get_reg_val(fs3, reg_vals[3])
+        fs1_val = self.__get_reg_val(fs1, reg_vals[1], is_double)
+        fs2_val = self.__get_reg_val(fs2, reg_vals[2], is_double)
+        fs3_val = self.__get_reg_val(fs3, reg_vals[3], is_double)
 
         fd_val = ArithOp.perform_ops(op1, op2, fs1_val, fs2_val, fs3_val)
         if neg:
@@ -284,7 +287,7 @@ class HalfPrecisionEmulator(object):
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val, fs2_val, fs3_val]
 
-        self.collector.count_overflow_underflow(fd_val, reg_vals[0])
+        self.collector.count_overflow_underflow(fd_val, reg_vals[0], is_double)
 
     def execute(self, insn: Instruction) -> None:
         """

@@ -33,13 +33,20 @@ class TraceParser(object):
         try:
             insn_tokens = insn.split('.')
             opcode = OpCode(insn_tokens[0])
+            is_double = insn_tokens[-1][-1] == 'd'
             if opcode == OpCode.FCVT or opcode == OpCode.FMV:
                 # Distinguishes the specific type of
                 # conversion instruction
                 target = insn_tokens[1]
                 if target == 'd' or target == 's':
                     opcode = OpCode(opcode.value + '.' + target)
+                    
+                    # if the instruction only has one FP register
+                    # in the operands
+                    if len(operands) == 1:
+                        is_double = target == 'd'
             params["opcode"] = opcode
+            params["is_double"] = is_double
         except ValueError:
             raise ValueError(f"[ERROR] Invalid opcode: '{opcode}'")
         params["operands"] = operands

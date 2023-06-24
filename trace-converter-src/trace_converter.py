@@ -52,8 +52,10 @@ class TraceConverter(object):
                 prev_time = curr_time
             insn = TraceParser.parse(line)
             emulator.execute(insn)
+            last_insn = emulator.get_last_insn().output()
+            print(f"[DEBUG] Insn {count + 1}: {last_insn[:-1]}")
             # print(emulator.get_last_insn())
-            out_buf += emulator.get_last_insn().output()
+            out_buf += last_insn
             count += 1
 
         output.write(out_buf)

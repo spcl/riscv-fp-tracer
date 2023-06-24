@@ -2,7 +2,8 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from typing import List, Optional
-from utils import hex64_to_fp64
+from utils import hex64_to_fp64, hex64_to_fp32
+
 
 class FpStatsCollector(object):
     """
@@ -33,28 +34,34 @@ class FpStatsCollector(object):
             self.input_vals.append(fp_val)
 
     def count_overflow_underflow(self, fp16_val: np.float16,
-                                 fp64_str: str) -> None:
+                                 hex: str, is_double: bool = True) -> int:
         """
         Detects if an overflow or underflow has happened by comparing
         the np.float64 value converted from its corresponding hex string
-        with the computed np.float16 value.
+        with the computed np.float32 or np.float64 value.
         """
         if not self.enabled:
             return
         
-        fp64_val = hex64_to_fp64(fp64_str)
+        # Converts the string to a higher precision value
+        if is_double:
+            hp_val = hex64_to_fp64(hex)
+        else:
+            hp_val = hex64_to_fp32(hex)
         self.total_count += 1
         # An overflow happens when the FP64 value is not 'inf' or 'NaN'
         # but the FP16 value is not finite
-        if not np.isfinite(fp16_val) and np.isfinite(fp64_val):
+        if not np.isfinite(fp16_val) and np.isfinite(hp_val):
             self.overflow_count += 1
+            print(f"[DEBUG] Overflow fp16: {fp16_val}, fp{'64' if is_double else '32'} {hex}")
             return
         
         # An underflow happens when the FP64 value is not 0
         # but its corresponding FP16 value is 0
-        if fp16_val == 0 and fp64_val != 0:
+        if fp16_val == 0 and hp_val != 0:
             self.underflow_count += 1
-            return        
+            print(f"[DEBUG] Underflow fp16: {fp16_val}, fp{'64' if is_double else '32'} {hex}")
+            return
 
     def plot_input_dist(self) -> None:
         """
