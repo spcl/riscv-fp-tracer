@@ -18,12 +18,15 @@ class TraceConverter(object):
     'fadd fa5 fa3 fa5;4248 4248 4648'
     """
     def __init__(self, trace_file: str, output_file: str,
-                 collector: Optional[FpStatsCollector] = None) -> None:
+                 collector: Optional[FpStatsCollector] = None,
+                 debug: bool = False) -> None:
         # Makes sure that the given file exists
         assert(os.path.exists(trace_file))
         self.trace_file = trace_file
         self.output_file = output_file
         self.collector = collector
+
+        self.debug = debug
 
     def convert(self, flush_freq: int = 1000000) -> None:
         """
@@ -50,10 +53,11 @@ class TraceConverter(object):
                 output.write(out_buf)
                 out_buf = ""
                 prev_time = curr_time
-            insn = TraceParser.parse(line)
+            insn = TraceParser.parse(line, count)
             emulator.execute(insn)
             last_insn = emulator.get_last_insn().output()
-            print(f"[DEBUG] Insn {count + 1}: {last_insn[:-1]}")
+            if self.debug:
+                print(f"[DEBUG] Insn {count}: {last_insn[:-1]}")
             # print(emulator.get_last_insn())
             out_buf += last_insn
             count += 1

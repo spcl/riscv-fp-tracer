@@ -10,10 +10,11 @@ class TraceParser(object):
         pass
     
     @staticmethod
-    def parse(insn: str) -> Instruction:
+    def parse(insn: str, insn_id: int) -> Instruction:
         """
         Parses the given instruction by splitting into an
-        Instruction object.
+        Instruction object. The given integer ID will be
+        used to uniquely identify each instruction.
         """
         params = {}
         tokens = insn.split(";")
@@ -52,5 +53,6 @@ class TraceParser(object):
         params["operands"] = operands
         reg_vals = reg_val_str.split()
         params["reg_vals"] = reg_vals
+        params["id"] = insn_id
         insn = Instruction(**params)
         return insn

@@ -102,7 +102,7 @@ class Instruction(object):
     An object that stores all the information related to a
     single instruction.
     """
-    def __init__(self, opcode: OpCode, operands: List[str],
+    def __init__(self, id: int, opcode: OpCode, operands: List[str],
                  reg_vals: List[Union[np.float16, str]],
                  addr: Optional[str] = None,
                  is_double: bool = True) -> None:
@@ -110,6 +110,7 @@ class Instruction(object):
         `is_double` indicates whether the instruction was
         performed on double-precision FP numbers.
         """
+        self.id = id
         self.opcode = opcode
         self.operands = operands
         self.reg_vals = reg_vals
@@ -118,7 +119,7 @@ class Instruction(object):
     
     def __str__(self) -> str:
         regs = [f"{reg}({val})" for reg, val in zip(self.operands, self.reg_vals)]
-        return f"{self.opcode.value} {','.join(regs)}"
+        return f"{self.id}: {self.opcode.value} {','.join(regs)}"
 
     def output(self, end: str = "\n") -> str:
         """
@@ -127,8 +128,8 @@ class Instruction(object):
         <opcode> [ <fp_reg>]+ [ <reg_val_hex>]+
         """
         assert isinstance(self.reg_vals[0], np.float16)
-        # reg_vals = list(map(fp16_to_hex, self.reg_vals))
-        reg_vals = list(map(str, self.reg_vals))
+        reg_vals = list(map(fp16_to_hex, self.reg_vals))
+        # reg_vals = list(map(str, self.reg_vals))
         res = f"{self.opcode.value} {' '.join(self.operands)} "
         res += f"{' '.join(reg_vals)}{end}"
         return res
