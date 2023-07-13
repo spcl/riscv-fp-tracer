@@ -95,6 +95,8 @@ class OpCode(Enum):
     FSD = "fsd"         # [x]
     FSGNJ = "fsgnj"     # [x]
     FSGNJN = "fsgnjn"   # [x]
+    SW = "sw"
+    SD = "sd"
 
 
 class Instruction(object):
@@ -125,11 +127,14 @@ class Instruction(object):
         """
         Returns the instruction as a string that conforms with the
         trace file format.
-        <opcode> [ <fp_reg>]+ [ <reg_val_hex>]+
+        <opcode>[ <fp_reg>]+ <addr>[ <reg_val_hex>]+
         """
         assert isinstance(self.reg_vals[0], np.float16)
-        reg_vals = list(map(fp16_to_hex, self.reg_vals))
-        # reg_vals = list(map(str, self.reg_vals))
-        res = f"{self.opcode.value} {' '.join(self.operands)} "
+        # reg_vals = list(map(fp16_to_hex, self.reg_vals))
+        reg_vals = list(map(str, self.reg_vals))
+        operands = f" {' '.join(self.operands)}" if len(self.operands) > 0 else ''
+        addr = f" {self.addr}" if self.addr else ''
+
+        res = f"{self.opcode.value}{operands}{addr} "
         res += f"{' '.join(reg_vals)}{end}"
         return res

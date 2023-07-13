@@ -58,7 +58,9 @@ class HalfPrecisionEmulator(object):
             OpCode.FLE: self.__comp_fs1_fs2,
             OpCode.FLT: self.__comp_fs1_fs2,
             OpCode.FSGNJ: self.__fsgnj,
-            OpCode.FSGNJN: partial(self.__fsgnj, neg=True)
+            OpCode.FSGNJN: partial(self.__fsgnj, neg=True),
+            OpCode.SW: self.__i_st,
+            OpCode.SD: self.__i_st,
         }
 
     def print_register_state(self, row_len: int = 4) -> None:
@@ -96,9 +98,23 @@ class HalfPrecisionEmulator(object):
         val = hex64_to_fp16(trace_val, is_double)
         self.fp_regs[reg] = val
         self.collector.add_input_val(val)
-        self.collector.count_overflow_underflow(val, trace_val, is_double,
-                                                dst=reg, is_insn=False)
+        # self.collector.count_overflow_underflow(val, trace_val, is_double,
+        #                                         dst=reg, is_insn=False)
         return val
+
+
+    def __i_st(self, insn: Instruction) -> None:
+        """
+        Emulates an integer store operation. Simply parses the
+        value in the trace and overwrites the value in the memory
+        address specified instruction.
+        """
+        reg_vals = insn.reg_vals
+        is_double = insn.is_double
+        assert len(reg_vals) == 1
+        reg_val = hex64_to_fp16(reg_vals[0], is_double)
+        self.mem[insn.addr] = reg_val
+        insn.reg_vals = [reg_val]
 
     def __comp_fs1_fs2(self, insn: Instruction) -> None:
         """
@@ -178,8 +194,8 @@ class HalfPrecisionEmulator(object):
             self.collector.add_input_val(val)
             self.mem[addr] = val
 
-            self.collector.count_overflow_underflow(val, reg_vals[0], is_double,
-                                                    dst=addr, is_insn=False)
+            # self.collector.count_overflow_underflow(val, reg_vals[0], is_double,
+            #                                         dst=addr, is_insn=False)
         
         fd = operands[0]
         self.fp_regs[fd] = val
@@ -206,8 +222,8 @@ class HalfPrecisionEmulator(object):
         # Sets the value in the target memory address
         self.mem[addr] = reg_val
         insn.reg_vals = [reg_val]
-        self.collector.count_overflow_underflow(reg_val, reg_vals[0], is_double,
-                                                dst=addr, is_insn=False)
+        # self.collector.count_overflow_underflow(reg_val, reg_vals[0], is_double,
+        #                                         dst=addr, is_insn=False)
 
     def __fsgnj(self, insn: Instruction, neg: bool = False) -> None:
         """

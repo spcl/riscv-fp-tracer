@@ -240,6 +240,29 @@ char *qemu_plugin_insn_disas(const struct qemu_plugin_insn *insn)
     return plugin_disas(cpu, insn->vaddr, insn->data->len);
 }
 
+
+uint64_t qemu_plugin_read_pc(void)
+{
+    CPUArchState *cpu_state = current_cpu->env_ptr;
+    return cpu_state->pc;
+}
+
+double qemu_plugin_read_reg(int reg)
+{
+    // Reads a general purpose register assuming a
+    // 64-bit RISC-V CPU is used
+    CPUArchState *cpu_state = current_cpu->env_ptr;
+    if (reg < NUM_FP_REGS)
+    {
+        return *(double *) &cpu_state->gpr[reg];
+    }
+    printf("[ERROR] Register %d does not exist!\n", reg);
+
+    exit(-1);
+}
+
+
+
 double qemu_plugin_read_fp_reg(int reg)
 {
     // Implementation from:

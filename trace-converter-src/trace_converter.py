@@ -57,7 +57,7 @@ class TraceConverter(object):
             emulator.execute(insn)
             last_insn = emulator.get_last_insn().output()
             if self.debug:
-                print(f"[DEBUG] Insn {count}: {last_insn[:-1]}")
+                print(f"[DEBUG] Insn {count + 1}: {last_insn[:-1]}")
             # print(emulator.get_last_insn())
             out_buf += last_insn
             count += 1

@@ -60,10 +60,14 @@ static const char freg_name[32][5] = {
 };
 
 
+
+
 struct fp_data
 {
+    bool is_fp_insn;
     int num_regs;
     int fp_regs[4];
+    uint64_t vaddr;
     char insn[64];
 };
 
@@ -98,54 +102,36 @@ void double_to_hex_str(double value, char *hex_string) {
  */
 static void fp_data_to_str(struct fp_data *data, char *buf, uint32_t n)
 {
+    /* char vaddr_buf[32]; */
+    /* sprintf(vaddr_buf, "0x%x ", data->vaddr); */
+    /* append(buf, vaddr_buf, n); */
     append(buf, data->insn, n);
+    append(buf, ";", n);
     char tmp[sizeof(double) + 1];
-    /* if (data->num_regs == 1) */
-    /* { */
-    /*     char buf[sizeof(double) * 2 + 1]; */
-    /*     double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]); */
-    /*     double_to_hex_str(reg_val0, buf); */
-    /*     snprintf(tmp, 128, " %s", buf); */
-    /* } */
-    /* else if (data->num_regs == 2) */
-    /* { */
-    /*     char buf0[sizeof(double) * 2 + 1]; */
-    /*     char buf1[sizeof(double) * 2 + 1]; */
-    /*     double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]); */
-    /*     double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]); */
-    /*     double_to_hex_str(reg_val0, buf0); */
-    /*     double_to_hex_str(reg_val1, buf1); */
-        
-    /*     snprintf(tmp, 128, " %s %s", buf0, buf1); */
-    /* } */
-    /* else if (data->num_regs == 3) */
-    /* { */
-    /*     char buf0[sizeof(double) * 2 + 1]; */
-    /*     char buf1[sizeof(double) * 2 + 1]; */
-    /*     double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]); */
-    /*     double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]); */
-    /*     double reg_val2 = qemu_plugin_read_fp_reg(data->fp_regs[2]); */
-    /*     snprintf(tmp, 128, " %f %f %f", reg_val0, reg_val1, reg_val2); */
-    /* } */
-    /* else if (data->num_regs == 4) */
-    /* { */
-    /*     double reg_val0 = qemu_plugin_read_fp_reg(data->fp_regs[0]); */
-    /*     double reg_val1 = qemu_plugin_read_fp_reg(data->fp_regs[1]); */
-    /*     double reg_val2 = qemu_plugin_read_fp_reg(data->fp_regs[2]); */
-    /*     double reg_val3 = qemu_plugin_read_fp_reg(data->fp_regs[3]); */
-    /*     snprintf(tmp, 128, " %f %f %f %f", reg_val0, reg_val1, reg_val2, reg_val3); */
-    /* } */
-    /* else */
-    /* { */
-    /*     printf("[ERROR] Some thing went wrong!\n"); */
-    /* } */
     assert(data->num_regs <= 4);
+    /* if (data->vaddr == 0x1b34a) */
+    /* { */
+    /*     printf("[DEBUG] Current pc: 0x%lx\n", qemu_plugin_read_pc()); */
+    /*     printf("[DEBUG] reg: %d, reg val: %f\n", data->fp_regs[0], qemu_plugin_read_fp_reg(data->fp_regs[0])); */
+    /* } */
+    /* printf("[DEBUG] opcode: %s %d %d\n", data->insn, data->num_regs, data->fp_regs[0]); */
     for (int reg = 0; reg < data->num_regs; ++reg)
     {
-        append(buf, " ", n);
-        double reg_val = qemu_plugin_read_fp_reg(data->fp_regs[reg]);
+        double reg_val;
+        if (data->is_fp_insn)
+        {
+            reg_val = qemu_plugin_read_fp_reg(data->fp_regs[reg]);
+        }
+        else
+        {
+            reg_val = qemu_plugin_read_reg(data->fp_regs[reg]);
+        }
+        /* printf(" reg %d\n", data->fp_regs[reg]); */
         double_to_hex_str(reg_val, tmp);
+        /* printf(" %s %d", tmp, reg); */
         append(buf, tmp, n);
+        if (reg < data->num_regs - 1)
+            append(buf, " ", n);
     }
     append(buf, "\n", n);
 }
@@ -251,18 +237,18 @@ static void expand_last_exec(int cpu_index)
 static void vcpu_mem(unsigned int cpu_index, qemu_plugin_meminfo_t info,
                      uint64_t vaddr, void *udata)
 {
-    GString *s;
-    
+    /* GString *s; */
+    struct fp_data* data;
     /* Find vCPU in array */
     g_assert(cpu_index < last_exec->len);
-    s = g_ptr_array_index(last_exec, cpu_index);
+    data = g_ptr_array_index(last_exec, cpu_index);
     char buf[20];
     int i = fast_hex_to_str(buf, vaddr);
     buf[i--] = 'x';
     buf[i--] = '0';
     buf[i] = ';';
-    
-    g_string_insert_len(s, -1, (const char *) &buf[i], 19 - i);
+    append(data->insn, &buf[i], 64);
+    /* g_string_insert_len(s, -1, (const char *) &buf[i], 19 - i); */
     /* g_string_append(s, &buf[i]); */
     /* printf("[DEBUG] %d, len: %ld\n", i, strlen(&buf[i])); */
     /* g_string_append(s, &buf[i]); */
@@ -305,6 +291,12 @@ static void vcpu_insn_exec(unsigned int cpu_index, void *udata)
     {
         char buf[256];
         buf[0] = '\0';
+        /* printf("[DEBUG] Current pc: 0x%lx\n", qemu_plugin_read_pc()); */
+        /* if (data->vaddr == 0x1b34a) */
+        /* { */
+        /*     printf("[DEBUG] Current pc: 0x%lx\n", qemu_plugin_read_pc()); */
+        /*     printf("[DEBUG] reg: %d, reg val: %f\n", data->fp_regs[0], qemu_plugin_read_fp_reg(data->fp_regs[0])); */
+        /* } */
         fp_data_to_str(data, buf, sizeof(buf));
         g_string_append(log_entries, buf);
         log_entry_count++;
@@ -314,9 +306,10 @@ static void vcpu_insn_exec(unsigned int cpu_index, void *udata)
 
     /* Store new instruction in cache */
     struct fp_data *new_data = (struct fp_data *) udata;
-    strcpy(data->insn, new_data->insn);
-    memcpy(data->fp_regs, new_data->fp_regs, sizeof(new_data->fp_regs));
-    data->num_regs = new_data->num_regs;
+    memcpy(data, udata, sizeof(struct fp_data));
+    /* strcpy(data->insn, new_data->insn); */
+    /* memcpy(data->fp_regs, new_data->fp_regs, sizeof(new_data->fp_regs)); */
+    /* data->num_regs = new_data->num_regs; */
     if (log_entry_count % FLUSH_FREQ == 0)
         flush_log_entries();
 }
@@ -441,6 +434,10 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
                 char insn_buf[64] = { 0 };
                 int n = sizeof(insn_buf);
                 char *token;
+                // Checks if the instruction is actually
+                // a floating point instruction
+                bool is_fp_insn = insn_disas[0] == 'f';
+                
                 token = strtok(insn_disas, " ");
                 append(insn_buf, token, n);
                 int reg_count = 0;
@@ -450,13 +447,18 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
                     if (token != NULL)
                     {
                         int reg = fast_str_to_int(token);
-                        append(insn_buf, " ", n);
-                        append(insn_buf, freg_name[reg], n);
+                        if (is_fp_insn)
+                        {
+                            append(insn_buf, " ", n);
+                            append(insn_buf, freg_name[reg], n);
+                        }
                         data->fp_regs[reg_count++] = reg;
                     }
                 }
                 strncpy(data->insn, insn_buf, n);
+                data->is_fp_insn = is_fp_insn;
                 data->num_regs = reg_count;
+                data->vaddr = qemu_plugin_insn_vaddr(insn);
             }
             /* bool exists = false; */
             /* for (int x = 0; x < fnames->len && !exists; ++x) */
@@ -472,9 +474,9 @@ static void vcpu_tb_trans(qemu_plugin_id_t id, struct qemu_plugin_tb *tb)
             /*     g_ptr_array_add(fnames, symbol); */
             /* } */
             /* Register callback on memory read or write */
-            /* qemu_plugin_register_vcpu_mem_cb(insn, vcpu_mem, */
-            /*                                  QEMU_PLUGIN_CB_NO_REGS, */
-            /*                                  QEMU_PLUGIN_MEM_RW, NULL); */
+            qemu_plugin_register_vcpu_mem_cb(insn, vcpu_mem,
+                                             QEMU_PLUGIN_CB_NO_REGS,
+                                             QEMU_PLUGIN_MEM_RW, NULL);
 
             /* Register callback on instruction */
             qemu_plugin_register_vcpu_insn_exec_cb(insn, vcpu_insn_exec,

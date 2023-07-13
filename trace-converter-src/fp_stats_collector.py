@@ -1,10 +1,26 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 from instruction import Instruction
 from utils import hex64_to_fp64, hex64_to_fp32
 
+
+class Float16(object):
+    """
+    A wrapper class around np.float16 that allows a more
+    fine-grained access to different parts of the fp16 representation
+    (i.e., sign, exp, mantissa).
+    """
+    def __init__(self, fp_num: Union[np.float16, np.float64]) -> None:
+        """
+        If the given number of is in np.float64, convert it to np.float16.
+        """
+        if not isinstance(fp_num, np.float16):
+            fp_num = np.float16(fp_num)
+        self.num = np.fp_num
+
+    
 
 class FpStatsCollector(object):
     """
@@ -105,11 +121,16 @@ class FpStatsCollector(object):
             # Checks whether the values stored in the dependent
             # registers/memory address are already overflown/underflown
             for dep in src:
-                try:
-                    dep_orf_udf = self.ex_map[dep] or dep_orf_udf
-                except KeyError:
-                    print(f"[ERROR] STATS COLLECTOR: value of {dep} has not been initialized")
-                    exit(-1)
+                if dep not in self.ex_map:
+                    # If an entry for the dependent register/address
+                    # has not been initialized, it will be set to False
+                    # by default regardless of what its value actually is
+                    if self.debug:
+                        print(f"[WARNING] STATS COLLECTOR: value of {dep} "
+                              "has not been initialized")
+                    self.ex_map[dep] = False
+                
+                dep_orf_udf = self.ex_map[dep] or dep_orf_udf
                 
             # If one of the dependencies already have an invalid value
             # the status of the current instruction will not be influenced
@@ -123,13 +144,13 @@ class FpStatsCollector(object):
         if overflow and not dep_orf_udf:
             self.overflow_count += 1
             if self.debug:
-                print(f"[DEBUG] Overflow fp16: {fp16_val}, fp{'64' if is_double else '32'} {hex}")
+                print(f"[DEBUG] Overflow fp16: {fp16_val}, fp{'64' if is_double else '32'}: {hp_val}")
             return True
         
         if underflow and not dep_orf_udf:
             self.underflow_count += 1
             if self.debug:
-                print(f"[DEBUG] Underflow fp16: {fp16_val}, fp{'64' if is_double else '32'} {hex}")
+                print(f"[DEBUG] Underflow fp16: {fp16_val}, fp{'64' if is_double else '32'}: {hp_val}")
             return True
 
 

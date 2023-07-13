@@ -14,6 +14,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /*
  * For best performance, build the plugin with -fvisibility=hidden so that
@@ -666,11 +667,27 @@ uint64_t qemu_plugin_entry_code(void);
 
 
 /**
- * read_fp_reg() read a floating point register
+ * qemu_plugin_read_fp_reg() read a floating point register
  * @reg: Number of the register
  *
  * Returns the value of the register
  */
 double qemu_plugin_read_fp_reg(int reg);
+
+
+
+/**
+ * qemu_plugin_read_reg() read a floating point register
+ * @reg: Number of the register
+ *
+ * Returns the value of the register
+ */
+double qemu_plugin_read_reg(int reg);
+
+
+/**
+ * Returns the value of the program counter
+ */
+uint64_t qemu_plugin_read_pc(void);
 
 #endif /* QEMU_QEMU_PLUGIN_H */

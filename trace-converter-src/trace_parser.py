@@ -15,6 +15,7 @@ class TraceParser(object):
         Parses the given instruction by splitting into an
         Instruction object. The given integer ID will be
         used to uniquely identify each instruction.
+        FIXME Probably don't need this ID
         """
         params = {}
         tokens = insn.split(";")
@@ -31,8 +32,8 @@ class TraceParser(object):
             raise ValueError(f"[ERROR] Invalid format: {insn}")
 
         insn, *operands = insn_str.split()
+        insn_tokens = insn.split('.')
         try:
-            insn_tokens = insn.split('.')
             opcode = OpCode(insn_tokens[0])
             is_double = insn_tokens[-1][-1] == 'd'
             if opcode == OpCode.FCVT or opcode == OpCode.FMV:
@@ -49,7 +50,7 @@ class TraceParser(object):
             params["opcode"] = opcode
             params["is_double"] = is_double
         except ValueError:
-            raise ValueError(f"[ERROR] Invalid opcode: '{opcode}'")
+            raise ValueError(f"[ERROR] Invalid opcode: {insn}")
         params["operands"] = operands
         reg_vals = reg_val_str.split()
         params["reg_vals"] = reg_vals

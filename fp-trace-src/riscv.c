@@ -983,12 +983,12 @@ typedef struct {
 
 /* register names */
 
-static const char rv_ireg_name_sym[32][5] = {
-    "zero", "ra",   "sp",   "gp",   "tp",   "t0",   "t1",   "t2",
-    "s0",   "s1",   "a0",   "a1",   "a2",   "a3",   "a4",   "a5",
-    "a6",   "a7",   "s2",   "s3",   "s4",   "s5",   "s6",   "s7",
-    "s8",   "s9",   "s10",  "s11",  "t3",   "t4",   "t5",   "t6",
-};
+/* static const char rv_ireg_name_sym[32][5] = { */
+/*     "zero", "ra",   "sp",   "gp",   "tp",   "t0",   "t1",   "t2", */
+/*     "s0",   "s1",   "a0",   "a1",   "a2",   "a3",   "a4",   "a5", */
+/*     "a6",   "a7",   "s2",   "s3",   "s4",   "s5",   "s6",   "s7", */
+/*     "s8",   "s9",   "s10",  "s11",  "t3",   "t4",   "t5",   "t6", */
+/* }; */
 
 
 /* static const char rv_freg_name_sym[32][5] = { */
@@ -997,6 +997,14 @@ static const char rv_ireg_name_sym[32][5] = {
 /*     "fa6",  "fa7",  "fs2",  "fs3",  "fs4",  "fs5",  "fs6",  "fs7", */
 /*     "fs8",  "fs9",  "fs10", "fs11", "ft8",  "ft9",  "ft10", "ft11", */
 /* }; */
+
+static const char rv_ireg_name_sym[32][5] = {
+    "0",  "1",  "2",  "3",  "4",  "5",  "6",  "7",
+    "8",  "9",  "10",  "11",  "12",  "13",  "14",  "15",
+    "16",  "17",  "18",  "19",  "20",  "21",  "22",  "23",
+    "24",  "25",  "26", "27", "28",  "29",  "30", "31",
+};
+
 
 static const char rv_freg_name_sym[32][5] = {
     "0",  "1",  "2",  "3",  "4",  "5",  "6",  "7",
@@ -1106,7 +1114,7 @@ static const char rv_vreg_name_sym[32][4] = {
 #define rv_fmt_frd_offset_rs1         "O\t3"
 #define rv_fmt_rd_csr_rs1             ""
 #define rv_fmt_rd_csr_zimm            ""
-#define rv_fmt_rs2_offset_rs1         ""
+#define rv_fmt_rs2_offset_rs1         "O\t2"
 #define rv_fmt_frs2_offset_rs1        "O\t5"
 #define rv_fmt_rs1_rs2_offset         ""
 #define rv_fmt_rs2_rs1_offset         ""
@@ -1449,8 +1457,10 @@ const rv_opcode_data opcode_data[] = {
     { "lw", rv_codec_i, rv_fmt_rd_offset_rs1, NULL, 0, 0, 0 },
     { "lbu", rv_codec_i, rv_fmt_rd_offset_rs1, NULL, 0, 0, 0 },
     { "lhu", rv_codec_i, rv_fmt_rd_offset_rs1, NULL, 0, 0, 0 },
-    { "sb", rv_codec_s, rv_fmt_rs2_offset_rs1, NULL, 0, 0, 0 },
-    { "sh", rv_codec_s, rv_fmt_rs2_offset_rs1, NULL, 0, 0, 0 },
+    /* { "sb", rv_codec_s, rv_fmt_rs2_offset_rs1, NULL, 0, 0, 0 }, */
+    { "sb", rv_codec_s, rv_fmt_rd_offset_rs1, NULL, 0, 0, 0 },
+    /* { "sh", rv_codec_s, rv_fmt_rs2_offset_rs1, NULL, 0, 0, 0 }, */
+    { "sh", rv_codec_s, rv_fmt_rd_offset_rs1, NULL, 0, 0, 0 },
     { "sw", rv_codec_s, rv_fmt_rs2_offset_rs1, NULL, 0, 0, 0 },
     { "addi", rv_codec_i, rv_fmt_rd_rs1_imm, rvcp_addi, 0, 0, 0 },
     { "slti", rv_codec_i, rv_fmt_rd_rs1_imm, NULL, 0, 0, 0 },
