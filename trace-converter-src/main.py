@@ -18,7 +18,10 @@ if __name__ == "__main__":
                         action="store_true",
                         help="If set, will ignore the propagation of exceptions when "
                         "computing the overflow/underflow probabilities.")
-    
+    parser.add_argument("-n", "--num-fp-insn", dest="num_fp_insn",
+                        type=int, default=None,
+                        help="Specifies the maximum number of FP instructions to execute "
+                        " from the trace. Note that 'sd' and 'sw' do not count as FP instructions.")
     parser.add_argument("--debug", dest="debug", default=False,
                         action="store_true", help="Output debug messages")
     args = parser.parse_args()
@@ -26,14 +29,17 @@ if __name__ == "__main__":
     if args.collect_stats:
         print("[INFO] FP16 statistics will be collected")
         print(f"[INFO] Ignore FP exception propagation: {args.ignore_ex_prop}")
+    if args.num_fp_insn is not None:
+        print(f"[INFO] Executing {args.num_fp_insn} FP instructions")
     stats_file_name = f"{Path(args.input_file).stem}.stats"
     collector = FpStatsCollector(stats_file_name, args.ignore_ex_prop,
                                  args.collect_stats, args.debug)
     converter = TraceConverter(args.input_file, args.output_file, collector,
-                               args.debug)
+                               args.num_fp_insn, args.debug)
     converter.convert()
     
     if args.collect_stats:
         # Prints statistics
         collector.plot_input_dist()
+        collector.plot_sub_shits_dist()
         collector.print_overflow_underflow_stats()

@@ -19,13 +19,15 @@ class TraceConverter(object):
     """
     def __init__(self, trace_file: str, output_file: str,
                  collector: Optional[FpStatsCollector] = None,
+                 num_fp_insn: Optional[int] = None,
                  debug: bool = False) -> None:
         # Makes sure that the given file exists
         assert(os.path.exists(trace_file))
         self.trace_file = trace_file
         self.output_file = output_file
         self.collector = collector
-
+        # Specifies the number of FP instructions to execute
+        self.num_fp_insn = num_fp_insn if num_fp_insn is not None else -1
         self.debug = debug
 
     def convert(self, flush_freq: int = 1000000) -> None:
@@ -44,6 +46,7 @@ class TraceConverter(object):
         emulator = HalfPrecisionEmulator(self.collector)
 
         prev_time = time()
+        fp_insn_count = 0
         # Iterates through every line in the trace file
         for line in trace:
             if count % flush_freq == 0 and count > 0:
@@ -54,6 +57,9 @@ class TraceConverter(object):
                 out_buf = ""
                 prev_time = curr_time
             insn = TraceParser.parse(line, count)
+            if insn.is_fp_insn:
+                fp_insn_count += 1
+
             emulator.execute(insn)
             last_insn = emulator.get_last_insn().output()
             if self.debug:
@@ -61,6 +67,9 @@ class TraceConverter(object):
             # print(emulator.get_last_insn())
             out_buf += last_insn
             count += 1
+
+            if fp_insn_count == self.num_fp_insn:
+                break
 
         output.write(out_buf)
         trace.close()

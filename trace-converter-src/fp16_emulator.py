@@ -63,6 +63,53 @@ class HalfPrecisionEmulator(object):
             OpCode.SD: self.__i_st,
         }
 
+    # ===================== Arithmetic operations ======================
+    def perform_unary_op(self, op: ArithOp, val: np.float16) -> np.float16:
+        """
+        Performs a unary operation as per the given operator
+        and value.
+        """
+        if op == ArithOp.ABS:
+            return abs(val)
+        if op == ArithOp.SQRT:
+            return np.sqrt(val)
+        if op == ArithOp.NEG:
+            return -val
+
+        raise ValueError(f"[ERROR] '{op.name}' is not a unary operator.")
+
+    def perform_op(self, op: ArithOp, val1: np.float16, val2: np.float16) \
+        -> np.float16:
+        """
+        Performs the given arithmetic operation on the values and
+        returns the result as np.float16.
+        """
+        if op == ArithOp.ADD:
+            return val1 + val2
+        if op == ArithOp.SUB:
+            self.collector.comp_catastrophic_cancellation(val1, val2)
+            return val1 - val2
+        if op == ArithOp.DIV:
+            return val1 / val2
+        if op == ArithOp.MUL:
+            return val1 * val2
+        if op == ArithOp.MAX:
+            return max(val1, val2)
+        if op == ArithOp.MIN:
+            return min(val1, val2)
+        raise ValueError(f"[ERROR] '{op.name}' not supported")
+
+    def perform_ops(self, op1: ArithOp, op2: ArithOp,
+                    val1: np.float16, val2: np.float16, val3: np.float16) \
+        -> np.float16:
+        """
+        Performs two given arithmetic operations on three values.
+        """
+        tmp = self.perform_op(op1, val1, val2)
+        res = self.perform_op(op2, tmp, val3)
+        return res
+
+
     def print_register_state(self, row_len: int = 4) -> None:
         """
         Prints out the value of each FP16 register.
@@ -264,7 +311,7 @@ class HalfPrecisionEmulator(object):
         fd, fs1 = operands
         fs1_val = self.__get_reg_val(fs1, reg_vals[1], is_double)
         
-        fd_val = ArithOp.perform_unary_op(op, fs1_val)
+        fd_val = self.perform_unary_op(op, fs1_val)
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val]
 
@@ -286,7 +333,7 @@ class HalfPrecisionEmulator(object):
         fs1_val = self.__get_reg_val(fs1, reg_vals[1], is_double)
         fs2_val = self.__get_reg_val(fs2, reg_vals[2], is_double)
 
-        fd_val = ArithOp.perform_op(op, fs1_val, fs2_val)
+        fd_val = self.perform_op(op, fs1_val, fs2_val)
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val, fs2_val]
 
@@ -311,7 +358,7 @@ class HalfPrecisionEmulator(object):
         fs2_val = self.__get_reg_val(fs2, reg_vals[2], is_double)
         fs3_val = self.__get_reg_val(fs3, reg_vals[3], is_double)
 
-        fd_val = ArithOp.perform_ops(op1, op2, fs1_val, fs2_val, fs3_val)
+        fd_val = self.perform_ops(op1, op2, fs1_val, fs2_val, fs3_val)
         if neg:
             fd_val = -fd_val
         

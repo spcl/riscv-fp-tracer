@@ -17,53 +17,6 @@ class ArithOp(Enum):
     ABS = auto()
     SQRT = auto()
     NEG = auto()
-
-    @staticmethod
-    def perform_unary_op(op: ArithOp, val: np.float16) -> np.float16:
-        """
-        Performs a unary operation as per the given operator
-        and value.
-        """
-        if op == ArithOp.ABS:
-            return abs(val)
-        if op == ArithOp.SQRT:
-            return np.sqrt(val)
-        if op == ArithOp.NEG:
-            return -val
-
-        raise ValueError(f"[ERROR] '{op.name}' is not a unary operator.")
-
-    @staticmethod
-    def perform_op(op: ArithOp, val1: np.float16, val2: np.float16) \
-        -> np.float16:
-        """
-        Performs the given arithmetic operation on the values and
-        returns the result as np.float16.
-        """
-        if op == ArithOp.ADD:
-            return val1 + val2
-        if op == ArithOp.SUB:
-            return val1 - val2
-        if op == ArithOp.DIV:
-            return val1 / val2
-        if op == ArithOp.MUL:
-            return val1 * val2
-        if op == ArithOp.MAX:
-            return max(val1, val2)
-        if op == ArithOp.MIN:
-            return min(val1, val2)
-        raise ValueError(f"[ERROR] '{op.name}' not supported")
-
-    @staticmethod
-    def perform_ops(op1: ArithOp, op2: ArithOp,
-                    val1: np.float16, val2: np.float16, val3: np.float16) \
-        -> np.float16:
-        """
-        Performs two given arithmetic operations on three values.
-        """
-        tmp = ArithOp.perform_op(op1, val1, val2)
-        res = ArithOp.perform_op(op2, tmp, val3)
-        return res
     
 
 class OpCode(Enum):
@@ -95,8 +48,11 @@ class OpCode(Enum):
     FSD = "fsd"         # [x]
     FSGNJ = "fsgnj"     # [x]
     FSGNJN = "fsgnjn"   # [x]
-    SW = "sw"
-    SD = "sd"
+    # FIXME Sometimes the compiler makes the
+    # dependent FP operations go through these integer stores
+    # e.g. LULESH2.0
+    SW = "sw"           # [x]
+    SD = "sd"           # [x]
 
 
 class Instruction(object):
@@ -107,10 +63,13 @@ class Instruction(object):
     def __init__(self, id: int, opcode: OpCode, operands: List[str],
                  reg_vals: List[Union[np.float16, str]],
                  addr: Optional[str] = None,
-                 is_double: bool = True) -> None:
+                 is_double: bool = True,
+                 is_fp_insn: bool = True) -> None:
         """
         `is_double` indicates whether the instruction was
         performed on double-precision FP numbers.
+        `is_fp_insn` specifies whether the instruction is a floating
+        point operation (i.e., 'sd' and 'sw' do not count).
         """
         self.id = id
         self.opcode = opcode
@@ -118,6 +77,7 @@ class Instruction(object):
         self.reg_vals = reg_vals
         self.addr = addr
         self.is_double = is_double
+        self.is_fp_insn = is_fp_insn
     
     def __str__(self) -> str:
         regs = [f"{reg}({val})" for reg, val in zip(self.operands, self.reg_vals)]

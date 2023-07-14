@@ -1,12 +1,16 @@
+from __future__ import annotations
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union, Tuple
 from instruction import Instruction
 from utils import hex64_to_fp64, hex64_to_fp32
 
 
 class Float16(object):
+    EXP_BIAS = 15
+    EXP_SIZE = 5
+    MANTISSA_SIZE = 10
     """
     A wrapper class around np.float16 that allows a more
     fine-grained access to different parts of the fp16 representation
@@ -18,9 +22,96 @@ class Float16(object):
         """
         if not isinstance(fp_num, np.float16):
             fp_num = np.float16(fp_num)
-        self.num = np.fp_num
+        self.num = fp_num
 
+    @property
+    def is_denorm(self) -> bool:
+        """
+        Returns True if the float represents a denormalized value.
+        i.e., the exponent bits are all 0s.
+        """
+        return self.exp_val == -Float16.EXP_BIAS
+
+    @property
+    def sign(self) -> int:
+        """
+        Returns the sign bit of the float.
+        """
+        return self.num < 0
     
+    @property
+    def exponent(self) -> int:
+        """
+        Returns the exponent bits of the float.
+        """
+        exp_bits = self.num.view(np.uint16) >> self.MANTISSA_SIZE & 0x1F
+        return exp_bits
+
+    @property
+    def mantissa(self) -> int:
+        """
+        Returns the mantissa bits of the float.
+        """
+        mantissa_bits = self.num.view(np.uint16) & 0x3FF
+        return mantissa_bits
+    
+    @property
+    def exp_val(self) -> int:
+        """
+        Returns the actual value represented by the exponent,
+        which can be calculated by first converting the exponent
+        bits to an integer then subtracting the bias 15.
+        """
+        return self.exponent - Float16.EXP_BIAS
+    
+
+    @property
+    def mantissa_with_implicit_bit(self) -> int:
+        """
+        Returns the mantissa bits along with the implicit bit.
+        Note that for normalized values, the implicit bit is 1,
+        while for the denormalized value, the implicit bit is 0.
+        """
+        if self.is_denorm:
+            # If the value is denormalized
+            return self.mantissa
+        # If the value is normalized, appends a 1 to the front
+        # of the mantissa bits
+        return (1 << Float16.MANTISSA_SIZE) | self.mantissa
+
+    def subtract(self, other: Float16) -> Tuple[int, int]:
+        """
+        Subtracts two Float16 numbers and returns the result
+        mantissa as bits along with the number of places
+        it needs to be shifted as a tuple.
+        """
+        # The mantissa of this float
+        m1 = self.mantissa_with_implicit_bit
+        # The other float's mantissa
+        m2 = other.mantissa_with_implicit_bit
+        # Aligns the radix points of hte two floats
+        exp_diff = self.exp_val - other.exp_val
+        if exp_diff > 0:
+            # If this number's exp is larger
+            m1 <<= exp_diff
+        elif exp_diff < 0:
+            # If the other number's exp is larger
+            m2 <<= -exp_diff
+        # Performs bitwise subtraction
+        res = m1 - m2
+        shift = 0
+        # If both values are denormalized
+        if (self.is_denorm and other.is_denorm) or res == 0:
+            return (res, shift)
+        # Computes the number of places the result needs
+        # to be shifted in order to be normalized
+        while (abs(res) >> 10) == 0:
+            res <<= 1
+            shift += 1
+            # print(f"[DEBUG] res: {bin(res)}")
+        return (res, shift)
+    
+
 
 class FpStatsCollector(object):
     """
@@ -55,6 +146,11 @@ class FpStatsCollector(object):
         # A map that is used to keep track of which registers
         # and memory addresses sar storing overflown/underflown values
         self.ex_map: Dict[str, bool] = {}
+
+        # A list that keeps track of the number of places shifted
+        # by the most significant '1' when floating point subtractions happen.
+        # It is used as a metric to measure catastrophic cancellation.
+        self.pos_shifts = []
 
     def add_input_val(self, fp_val: np.float16) -> None:
         """
@@ -153,6 +249,42 @@ class FpStatsCollector(object):
                 print(f"[DEBUG] Underflow fp16: {fp16_val}, fp{'64' if is_double else '32'}: {hp_val}")
             return True
 
+    def comp_catastrophic_cancellation(self, a: np.float16, b: np.float16) \
+        -> None:
+        """
+        Computes statistics about catastrophic cancellation in floating point
+        subtractions. Given two numbers, this function first wraps them
+        in our own custom class, then computes the number of places
+        shifted by the most significant '1' in the resulting value.
+        For instance, if `a` as a fixed point is 1000001, and b
+        as a fixed point is 1000000, the result would be 0000001,
+        whose most significant '1' needs to shifted by 6 places to
+        be normalized again.
+        """
+        if not self.enabled:
+            return
+
+        if not np.isfinite(a) or not np.isfinite(b):
+            # If either a or b is not finite
+            return
+
+        f1 = Float16(a)
+        f2 = Float16(b)
+
+        _, shift = f1.subtract(f2)
+        self.pos_shifts.append(shift)
+
+    def plot_sub_shits_dist(self) -> None:
+        """
+        Plots the distribution of bits shift in floating point subtraction.
+        """
+        if not self.enabled:
+            print("Statistics collection not enabled...")
+            return
+        
+        plt.hist(self.pos_shifts)
+        plt.savefig("fp_sub_shifts_dist.png", format="png")
+        plt.close()
 
     def plot_input_dist(self) -> None:
         """
@@ -172,10 +304,9 @@ class FpStatsCollector(object):
         print(f"Total number of input values: {input_size}")
         print(f"Percentage of 'NaN' in input: {nan_count / input_size * 100:.2f}%")
         print(f"Percentage of 'inf' in input: {inf_count / input_size * 100:.2f}%")
-        plt.savefig("tmp.png", format="png")
+        plt.savefig("input_dist.png", format="png")
         plt.close()
 
-    
     def print_overflow_underflow_stats(self) -> None:
         """
         Displays the statistics about overflow and underflow statistics.
@@ -188,4 +319,3 @@ class FpStatsCollector(object):
               f" ({self.overflow_count / self.total_count * 100:.2f}%)")
         print(f"Underflow: {self.underflow_count}/{self.total_count}"
               f" ({self.underflow_count / self.total_count * 100:.2f}%)")
-        
