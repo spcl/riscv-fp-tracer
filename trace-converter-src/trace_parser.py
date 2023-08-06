@@ -6,7 +6,6 @@ class TraceParser(object):
     """
     A class representation of the RISC-V instruction parser.
     """
-    non_fp_insn = frozenset([OpCode.SW, OpCode.SD])
     def __init__(self) -> None:
         pass
     
@@ -56,6 +55,5 @@ class TraceParser(object):
         reg_vals = reg_val_str.split()
         params["reg_vals"] = reg_vals
         params["id"] = insn_id
-        params["is_fp_insn"] = not opcode in TraceParser.non_fp_insn
         insn = Instruction(**params)
         return insn

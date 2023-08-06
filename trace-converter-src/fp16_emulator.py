@@ -87,7 +87,6 @@ class HalfPrecisionEmulator(object):
         if op == ArithOp.ADD:
             return val1 + val2
         if op == ArithOp.SUB:
-            self.collector.comp_catastrophic_cancellation(val1, val2)
             return val1 - val2
         if op == ArithOp.DIV:
             return val1 / val2
@@ -149,7 +148,6 @@ class HalfPrecisionEmulator(object):
         #                                         dst=reg, is_insn=False)
         return val
 
-
     def __i_st(self, insn: Instruction) -> None:
         """
         Emulates an integer store operation. Simply parses the
@@ -162,6 +160,7 @@ class HalfPrecisionEmulator(object):
         reg_val = hex64_to_fp16(reg_vals[0], is_double)
         self.mem[insn.addr] = reg_val
         insn.reg_vals = [reg_val]
+        self.collector.reset_ex_map_entry(insn.addr)
 
     def __comp_fs1_fs2(self, insn: Instruction) -> None:
         """
@@ -190,6 +189,7 @@ class HalfPrecisionEmulator(object):
         reg = operands[0]
         reg_val = self.__get_reg_val(reg, reg_vals[0], insn.is_double)
         insn.reg_vals = [reg_val]
+        self.collector.reset_ex_map_entry(reg)
 
     def __mv_to_fp(self, insn: Instruction) -> None:
         """
@@ -209,8 +209,7 @@ class HalfPrecisionEmulator(object):
             insn.reg_vals = [reg_val]
             # Collects statistics
             self.collector.add_input_val(reg_val)
-            self.collector.count_overflow_underflow(reg_val, reg_vals[0],
-                                                    is_double, dst=reg)
+            self.collector.reset_ex_map_entry(reg)
         else:
             # len(operands) == 2
             # Moves FP value from one FP register to the other
@@ -219,8 +218,7 @@ class HalfPrecisionEmulator(object):
             self.fp_regs[fd] = fs_val
             insn.reg_vals = [fs_val, fs_val]
             # Collects statistics
-            self.collector.count_overflow_underflow(fs_val, reg_vals[0],
-                                                    is_double, dst=fd, src=[fs])
+            self.collector.update_ex_map(fd, [fs])
 
     def __ld(self, insn: Instruction) -> None:
         """
@@ -240,17 +238,11 @@ class HalfPrecisionEmulator(object):
             val = hex64_to_fp16(reg_vals[0], is_double)
             self.collector.add_input_val(val)
             self.mem[addr] = val
-
-            # self.collector.count_overflow_underflow(val, reg_vals[0], is_double,
-            #                                         dst=addr, is_insn=False)
         
         fd = operands[0]
         self.fp_regs[fd] = val
         insn.reg_vals = [val]
-
-        self.collector.count_overflow_underflow(val, reg_vals[0],
-                                                is_double,
-                                                dst=fd, src=[addr])
+        self.collector.update_ex_map(fd, [addr])
 
     def __st(self, insn: Instruction) -> None:
         """
@@ -269,8 +261,8 @@ class HalfPrecisionEmulator(object):
         # Sets the value in the target memory address
         self.mem[addr] = reg_val
         insn.reg_vals = [reg_val]
-        # self.collector.count_overflow_underflow(reg_val, reg_vals[0], is_double,
-        #                                         dst=addr, is_insn=False)
+
+        self.collector.update_ex_map(addr, [reg])
 
     def __fsgnj(self, insn: Instruction, neg: bool = False) -> None:
         """
@@ -293,9 +285,7 @@ class HalfPrecisionEmulator(object):
 
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val, fs2_val]
-
-        self.collector.count_overflow_underflow(fd_val, reg_vals[0], is_double,
-                                                dst=fd, src=[fs1, fs2])
+        self.collector.update_ex_map(fd, [fs1, fs2])
 
     def __arith_fd_fs1(self, insn: Instruction, op: ArithOp) -> None:
         """
@@ -315,8 +305,12 @@ class HalfPrecisionEmulator(object):
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val]
 
-        self.collector.count_overflow_underflow(fd_val, reg_vals[0], is_double,
-                                                dst=fd, src=[fs1])
+        is_ex = self.collector.count_overflow_underflow(fd_val, reg_vals[0],
+                                                        is_double,
+                                                        dst=fd, src=[fs1])
+        self.collector.ex_map[fd] = is_ex
+
+        self.collector.add_error(fd_val, reg_vals[0], is_double)
 
     def __arith_fd_fs1_fs2(self, insn: Instruction, op: ArithOp) -> None:
         """
@@ -337,8 +331,18 @@ class HalfPrecisionEmulator(object):
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val, fs2_val]
 
-        self.collector.count_overflow_underflow(fd_val, reg_vals[0], is_double,
-                                                dst=fd, src=[fs1, fs2])
+        is_ex = False
+        if op == ArithOp.SUB:
+            is_ex = is_ex or \
+                self.collector.count_catastrophic_cancellation(fs1_val, fs2_val,
+                                                               fd, [fs1, fs2])
+        
+        is_ex = self.collector.count_overflow_underflow(fd_val, reg_vals[0],
+                                                        is_double,
+                                                        dst=fd, src=[fs1, fs2]) \
+                                                        or is_ex
+        self.collector.ex_map[fd] = is_ex
+        self.collector.add_error(fd_val, reg_vals[0], is_double)
     
     def __arith_fd_fs1_fs2_fs3(self, insn: Instruction,
                                op1: ArithOp, op2: ArithOp, neg: bool = False) \
@@ -358,19 +362,28 @@ class HalfPrecisionEmulator(object):
         fs2_val = self.__get_reg_val(fs2, reg_vals[2], is_double)
         fs3_val = self.__get_reg_val(fs3, reg_vals[3], is_double)
 
-        fd_val = self.perform_ops(op1, op2, fs1_val, fs2_val, fs3_val)
+        # Performs two arithmetic operations
+        # fd_val = self.perform_ops(op1, op2, fs1_val, fs2_val, fs3_val)
+        tmp = self.perform_op(op1, fs1_val, fs2_val)
+        fd_val = self.perform_op(op2, tmp, fs3_val)
+
+        is_ex = False
+        if op2 ==  ArithOp.SUB:
+            is_ex = is_ex or \
+                self.collector.count_catastrophic_cancellation(tmp, fs3_val,
+                                                               fd, src=[fs1, fs2, fs3])
+
         if neg:
             fd_val = -fd_val
         
         self.fp_regs[fd] = fd_val
         insn.reg_vals = [fd_val, fs1_val, fs2_val, fs3_val]
-
-        self.collector.count_overflow_underflow(fd_val, reg_vals[0], is_double,
-                                                dst=fd, src=[fs1, fs2, fs3])
-        # if res:
-        #     print(f"[DEBUG] {insn}")
-        #     print(f"[DEBUG] fs1: {self.collector.ex_map[fs1]} "
-        #           f"fs2: {self.collector.ex_map[fs2]} fs3: {self.collector.ex_map[fs3]}")
+        is_ex = self.collector.count_overflow_underflow(fd_val, reg_vals[0],
+                                                        is_double, dst=fd,
+                                                        src=[fs1, fs2, fs3]) \
+                                                        or is_ex
+        self.collector.ex_map[fd] = is_ex
+        self.collector.add_error(fd_val, reg_vals[0], is_double)
 
     def execute(self, insn: Instruction) -> None:
         """
@@ -383,6 +396,8 @@ class HalfPrecisionEmulator(object):
                              "not supported in the emulator")
         fn(insn)
         self.last_insn = insn
+        if insn.is_arith_insn:
+            self.collector.count_block_stats()
 
     def get_last_insn(self) -> Instruction:
         """
@@ -390,3 +405,11 @@ class HalfPrecisionEmulator(object):
         """
         assert self.last_insn is not None
         return self.last_insn
+    
+    def finalize(self) -> None:
+        """
+        Performs a series of operations after the program has
+        finished executing to finalize the output and statistics
+        collection.
+        """
+        self.collector.count_block_stats(finalize=True)

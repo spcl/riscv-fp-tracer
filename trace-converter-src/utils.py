@@ -9,6 +9,16 @@ def to_fp16(val: Union[np.float64, np.float32]) -> np.float16:
     """
     return np.float16(val)
 
+
+@lru_cache(maxsize=10000)
+def hex64_to_uint64(hex_string: str) -> np.uint64:
+    """
+    Converts the given hex string to np.uint64.
+    """
+    value = int(hex_string, 16)
+    return np.uint64(value)
+
+
 @lru_cache(maxsize=10000)
 def hex64_to_fp64(hex_string: str, endianness: str = "little") -> np.float64:
     """
@@ -67,3 +77,16 @@ def fp16_to_hex(fp16_value: np.float16):
     hex_value = hex(fp16_value.view(np.uint16))
     hex_string = hex_value[2:].upper().zfill(4)
     return hex_string
+
+
+
+def smooth(data: np.array, window_size: int = 10) -> np.array:
+    """
+    Applies a moving average filter to the given data according
+    to the specified window size.
+    Implementation from:
+    https://stackoverflow.com/questions/11352047/finding-moving-average-from-data-points-in-python
+    """
+    vec = np.cumsum(np.insert(data, 0, 0)) 
+    ma_vec = (vec[window_size:] - vec[:-window_size]) / window_size
+    return ma_vec

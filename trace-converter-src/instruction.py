@@ -20,12 +20,14 @@ class ArithOp(Enum):
     
 
 class OpCode(Enum):
+    # Move
     FCVT = "fcvt"       # [x]
     FCVTD = "fcvt.d"    # [x]
     FCVTS = "fcvt.s"    # [x]
     FMV = "fmv"         # [x]
     FMVD = "fmv.d"      # [x]
     FMVS = "fmv.s"      # [x]
+    # Arithmetic
     FDIV = "fdiv"       # [x]
     FSUB = "fsub"       # [x]
     FADD = "fadd"       # [x]
@@ -39,13 +41,16 @@ class OpCode(Enum):
     FNMSUB = "fnmsub"   # [x]
     FSQRT = "fsqrt"     # [x]
     FNEG = "fneg"       # [x]
+    # Comparison
     FEQ = "feq"         # [x]
     FLE = "fle"         # [x]
     FLT = "flt"         # [x]
+    # Memory Access
     FLW = "flw"         # [x]
     FLD = "fld"         # [x]
     FSW = "fsw"         # [x]
     FSD = "fsd"         # [x]
+    # Sign injection
     FSGNJ = "fsgnj"     # [x]
     FSGNJN = "fsgnjn"   # [x]
     # FIXME Sometimes the compiler makes the
@@ -60,16 +65,20 @@ class Instruction(object):
     An object that stores all the information related to a
     single instruction.
     """
+    # Arithmetic instructions
+    ARITH_INSN = frozenset([OpCode.FDIV, OpCode.FSUB, OpCode.FADD, 
+                            OpCode.FABS, OpCode.FMAX, OpCode.FMIN,
+                            OpCode.FMUL, OpCode.FMADD, OpCode.FMSUB,
+                            OpCode.FNMADD, OpCode.FNMSUB,
+                            OpCode.FSQRT, OpCode.FNEG])
+    NON_FP_INSN = frozenset([OpCode.SW, OpCode.SD])
     def __init__(self, id: int, opcode: OpCode, operands: List[str],
                  reg_vals: List[Union[np.float16, str]],
                  addr: Optional[str] = None,
-                 is_double: bool = True,
-                 is_fp_insn: bool = True) -> None:
+                 is_double: bool = True) -> None:
         """
         `is_double` indicates whether the instruction was
         performed on double-precision FP numbers.
-        `is_fp_insn` specifies whether the instruction is a floating
-        point operation (i.e., 'sd' and 'sw' do not count).
         """
         self.id = id
         self.opcode = opcode
@@ -77,7 +86,13 @@ class Instruction(object):
         self.reg_vals = reg_vals
         self.addr = addr
         self.is_double = is_double
-        self.is_fp_insn = is_fp_insn
+
+        # `is_fp_insn` specifies whether the instruction is a floating
+        # point operation (i.e., 'sd' and 'sw' do not count).
+        self.is_fp_insn = not opcode in Instruction.NON_FP_INSN
+        # `is_arith_insn` specifies whether the instruction
+        # is an arithmetic instruction
+        self.is_arith_insn = opcode in Instruction.ARITH_INSN
     
     def __str__(self) -> str:
         regs = [f"{reg}({val})" for reg, val in zip(self.operands, self.reg_vals)]
