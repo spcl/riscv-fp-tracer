@@ -75,8 +75,9 @@ class TraceConverter(object):
                 prev_time = curr_time
             insn = TraceParser.parse(line, count)
             
-            if insn.is_fp_insn:
-                self.mem_analyzer.add_mem_addr(insn.addr)
+            # Experimental feature: memory trace analysis
+            # if insn.is_fp_insn:
+            #     self.mem_analyzer.add_mem_addr(insn.addr)
 
             # if insn.is_arith_insn:
             #     arith_insn_count += 1
@@ -94,7 +95,7 @@ class TraceConverter(object):
                     arith_insn_count += 1
                     if self.debug:
                         print(f"[DEBUG] Insn {arith_insn_count} ({count}): {last_insn[:-1]}")
-                else:
+                elif self.debug:
                     print(f"[DEBUG] Insn ({count}): {last_insn[:-1]}")
 
             if arith_insn_count == self.num_arith_insn:

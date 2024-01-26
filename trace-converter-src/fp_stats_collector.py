@@ -320,7 +320,7 @@ class FpStatsCollector(object):
             return False
         
         self.total_count += 1
-        print(f"[DEBUG] dep vals: {tuple(dep_vals)}")
+        # print(f"[DEBUG] dep vals: {tuple(dep_vals)}")
         if overflow and not dep_orf_udf:
             self.overflow_count += 1
             self.curr_block_overflow_count += 1
@@ -481,11 +481,11 @@ class FpStatsCollector(object):
             print("Statistics collection not enabled...")
             return
         
-        self.plot_input_dist()
-        self.plot_sub_shifts_dist()
-        self.plot_error_dist()
-        self.plot_error_progression()
-        self.plot_sub_shifts_progression()
+        # self.plot_input_dist()
+        # self.plot_sub_shifts_dist()
+        # self.plot_error_dist()
+        # self.plot_error_progression()
+        # self.plot_sub_shifts_progression()
         self.print_overflow_underflow_stats()
         self.print_catastrophic_cancellation_stats()
         self.output_block_stats()
@@ -552,7 +552,7 @@ class FpStatsCollector(object):
             plt.tight_layout()
             plt.savefig("fp_sub_shifts_progression.png", format="png")
             plt.close()
-
+    
     def plot_error_dist(self) -> None:
         """
         Plots the distributions of absolute and relative errors.

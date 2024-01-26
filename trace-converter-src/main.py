@@ -10,7 +10,7 @@ if __name__ == "__main__":
                         help="Path to the trace file to be converted.")
     parser.add_argument("-o", "--output-file", dest="output_file",
                         default="fp16_trace.out",
-                        help="Path to the destination file after conversion.")
+                        help="Path to the destination file after conversion. [DEFAULT: fp16_trace.out]")
     parser.add_argument("-s", "--collect-stats", dest="collect_stats",
                         default=False, action="store_true",
                         help="If set, will collect statistics about FP operations. "
@@ -22,8 +22,9 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--num-arith-insn", dest="num_arith_insn",
                         type=int, default=None,
                         help="Specifies the maximum number of FP ARITHMETIC instructions to execute "
-                        " from the trace. Note that instructions such as 'fmv', 'sd', and 'sw' "
-                        " do not count as FP instructions.")
+                        "from the trace. Note that instructions such as 'fmv', 'sd', and 'sw' "
+                        "do not count as FP instructions. If not provided, will execute all "
+                        "the instructions in the given trace file.")
     parser.add_argument("--cc-threshold", dest="cc_threshold",
                         type=int, default=5,
                         help="A threshold that defines the number of bits "
@@ -34,7 +35,7 @@ if __name__ == "__main__":
                         action="store_true", help="Output debug messages")
     parser.add_argument("-m", "--analyze-mem-trace", dest="analyze_mem_trace",
                         default=False, action="store_true",
-                        help="If set will turn on memory trace analysis. Note that "
+                        help="If set, will turn on memory trace analysis. Note that "
                         "this is an experimental feature that is unrelated to the FP project.")
     parser.add_argument("-b", "--block", dest="block_size",
                         default=None, type=int,
@@ -66,6 +67,8 @@ if __name__ == "__main__":
                                  args.cc_threshold, args.block_size,
                                  args.collect_stats, args.debug)
     mem_analyzer = MemoryTraceAnalyzer(args.analyze_mem_trace)
+
+
     converter = TraceConverter(args.input_file, args.output_file, collector,
                                mem_analyzer, args.num_arith_insn, args.debug)
     converter.convert()
@@ -76,5 +79,7 @@ if __name__ == "__main__":
 
     if args.analyze_mem_trace:
         # mem_analyzer.visualize_access_pattern()
+        print("[INFO] Total addresses accessed:", len(mem_analyzer.mem_addrs))
         mem_analyzer.save_mem_trace()
         print("[INFO] Saved memory trace file")
+        mem_analyzer.plot_mem_addr_distribution()

@@ -10,7 +10,7 @@ def to_fp16(val: Union[np.float64, np.float32]) -> np.float16:
     return np.float16(val)
 
 
-@lru_cache(maxsize=10000)
+@lru_cache(maxsize=20000)
 def hex64_to_uint64(hex_string: str) -> np.uint64:
     """
     Converts the given hex string to np.uint64.

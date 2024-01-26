@@ -8,6 +8,7 @@ import math
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from typing import Optional, List
 from utils import hex64_to_uint64
 
@@ -34,7 +35,30 @@ class MemoryTraceAnalyzer(object):
             self.mem_addrs.append(hex64_to_uint64(addr))
 
     def plot_mem_addr_distribution(self) -> None:
-        pass
+        """
+        Plots the distribution of the collected memory addresses.
+        """
+        if not self.is_enabled:
+            print("Memory trace analysis not enabled...")
+            return
+        plt.hist(self.mem_addrs, bins=1000)
+
+        plt.xlabel("Memory address")
+        plt.ylabel("Count")
+
+        plt.yscale("log")
+        plt.xscale("log")
+
+        # Change x tick labels to hex
+        ax = plt.gca()
+        xlabels = map(lambda t: '0x%08X' % int(t), ax.get_xticks())
+        ax.set_xticklabels(xlabels)
+        # Tilt the x tick labels
+        plt.xticks(rotation=45)
+
+        plt.tight_layout()
+        plt.savefig("mem_addr_distribution.png", format="png")
+        plt.close()
     
 
     def save_mem_trace(self, out_file: Optional[str] = None) -> None:

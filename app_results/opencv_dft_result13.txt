@@ -1,0 +1,7 @@
+Overflow/Underflow statistics
+Overflow : 54023/3971024 (1.36%)
+Underflow: 6919/3971024 (0.17%)
+Catastrophic Cancellation statistics
+Catastrophic cancellation: 60592/1360837 (4.45%)
+Average number of bits shifted: 1.0216315400007496
+Standard deviation of number of bits shifted: 2.1150330316712282
