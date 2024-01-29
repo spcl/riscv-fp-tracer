@@ -296,8 +296,9 @@ class FpStatsCollector(object):
         
         # An underflow happens when the FP64 value is not 0
         # but its corresponding FP16 value is 0
-        if fp16_val == 0 and hp_val != 0:
-            underflow = True
+        # FIXME: Disable underflow
+        # if fp16_val == 0 and hp_val != 0:
+        #     underflow = True
             # self.underflow_count += 1
             # return
         
@@ -395,6 +396,7 @@ class FpStatsCollector(object):
 
         @return: True if dst contains the result of catastrophic cancellation.
         """
+        return
         if not self.enabled:
             return
 
@@ -487,8 +489,8 @@ class FpStatsCollector(object):
         # self.plot_error_progression()
         # self.plot_sub_shifts_progression()
         self.print_overflow_underflow_stats()
-        self.print_catastrophic_cancellation_stats()
-        self.output_block_stats()
+        # self.print_catastrophic_cancellation_stats()
+        # self.output_block_stats()
 
     def output_block_stats(self) -> None:
         """
