@@ -1,2 +1,3 @@
 Overflow/Underflow statistics
-Overflow : 90420/2039367 (4.43%)
+Root Overflow : 90420/2039367 (4.43%)
+Total Overflow : 170655/2039367 (8.37%)
